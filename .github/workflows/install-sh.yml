@@ -1,0 +1,20 @@
+name: install-sh
+on:
+  pull_request:
+    paths:
+      - 'install.sh'
+      - 'packaging/test/**'
+      - '.github/workflows/install-sh.yml'
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: shellcheck
+        run: shellcheck install.sh packaging/test/install_target.sh
+      - name: target resolution
+        run: sh packaging/test/install_target.sh
