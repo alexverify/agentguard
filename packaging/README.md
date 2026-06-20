@@ -1,12 +1,11 @@
 # packaging/ — distribution (seam)
 
-Release and distribution tooling. Empty today; `make build` produces a local
-binary in the meantime.
+Release and distribution tooling: the GoReleaser config, the Homebrew cask, and `install.sh`. `make build` still produces a local binary directly.
 
 ## Outputs (GoReleaser)
 
 - GitHub Releases with signed checksums (macOS/Linux/Windows, amd64/arm64).
-- A Homebrew tap (`brew install alexverify/tap/eyebrow`) via the `brews:` block.
+- A Homebrew tap (`brew install alexverify/tap/eyebrow`) via the `homebrew_casks:` block.
 - `install.sh` (`curl | sh`) — checksum-verified binary download.
 
 npm distribution was considered and **declined**: shipping a Go binary through

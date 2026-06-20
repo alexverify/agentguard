@@ -55,7 +55,7 @@ main() {
   curl -fsSL "${base}/checksums.txt" -o "$tmp/checksums.txt"
 
   echo "verifying checksum" >&2
-  checksum_line="$(grep " ${archive}\$" "$tmp/checksums.txt")"
+  checksum_line="$(grep " ${archive}\$" "$tmp/checksums.txt" || true)"
   [ -n "$checksum_line" ] || { echo "no checksum entry for $archive in checksums.txt" >&2; exit 1; }
   ( cd "$tmp" && printf '%s\n' "$checksum_line" | sha256_check )
 

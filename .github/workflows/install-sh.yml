@@ -5,6 +5,9 @@ on:
       - 'install.sh'
       - 'packaging/test/**'
       - '.github/workflows/install-sh.yml'
+permissions:
+  contents: read
+
 jobs:
   check:
     strategy:
