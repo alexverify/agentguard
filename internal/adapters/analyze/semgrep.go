@@ -75,15 +75,15 @@ func (s *Semgrep) Analyze(ctx context.Context, _ artifact.Artifact, root string)
 		return nil, nil
 	}
 	if _, err := os.Stat(s.RulesDir); err != nil {
-		return nil, nil
+		return nil, nil //nolint:nilerr // optional layer: any failure degrades to no findings
 	}
 	out, err := s.runner.Run(ctx, s.bin, semgrepArgs(s.RulesDir, root)...)
 	if err != nil {
-		return nil, nil
+		return nil, nil //nolint:nilerr // optional layer: any failure degrades to no findings
 	}
 	var parsed semgrepOutput
 	if err := json.Unmarshal(out, &parsed); err != nil {
-		return nil, nil
+		return nil, nil //nolint:nilerr // optional layer: any failure degrades to no findings
 	}
 
 	var fs []finding.Finding
