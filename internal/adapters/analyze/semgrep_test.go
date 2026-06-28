@@ -165,3 +165,51 @@ func TestShippedRulesParse(t *testing.T) {
 		t.Error("no rule files shipped in rules/")
 	}
 }
+
+func TestSemgrepSeverity(t *testing.T) {
+	tests := []struct {
+		in   string
+		want finding.Severity
+	}{
+		{"ERROR", finding.SeverityHigh},
+		{"WARNING", finding.SeverityMedium},
+		{"INFO", finding.SeverityLow},
+		{"", finding.SeverityInfo},
+		{"unknown", finding.SeverityInfo},
+	}
+	for _, tt := range tests {
+		if got := semgrepSeverity(tt.in); got != tt.want {
+			t.Errorf("semgrepSeverity(%q) = %q, want %q", tt.in, got, tt.want)
+		}
+	}
+	// ERROR must never reach critical: that tier is reserved for native rules.
+	if semgrepSeverity("ERROR") == finding.SeverityCritical {
+		t.Error("semgrep severity must not map to critical")
+	}
+}
+
+func TestSemgrepOWASP(t *testing.T) {
+	if got := semgrepOWASP(map[string]any{"owasp-agentic": "ASK-03"}); got != "ASK-03" {
+		t.Errorf("semgrepOWASP = %q, want ASK-03", got)
+	}
+	if got := semgrepOWASP(map[string]any{}); got != "" {
+		t.Errorf("semgrepOWASP(missing) = %q, want empty", got)
+	}
+	if got := semgrepOWASP(map[string]any{"owasp-agentic": 7}); got != "" {
+		t.Errorf("semgrepOWASP(non-string) = %q, want empty", got)
+	}
+}
+
+func TestRelToRoot(t *testing.T) {
+	root := filepath.Join("home", "user", "skill")
+	// A path under root renders relative with forward slashes.
+	in := filepath.Join(root, "sub", "run.sh")
+	if got := relToRoot(in, root); got != "sub/run.sh" {
+		t.Errorf("relToRoot(under root) = %q, want sub/run.sh", got)
+	}
+	// A path outside root falls back to the slash-normalized absolute path.
+	outside := filepath.Join("home", "other", "x.sh")
+	if got := relToRoot(outside, root); !strings.Contains(got, "other/x.sh") {
+		t.Errorf("relToRoot(outside) = %q, want it to retain the original path", got)
+	}
+}
