@@ -35,6 +35,20 @@ func TestFleetExportThenShow(t *testing.T) {
 	}
 }
 
+// With no --owner, export falls back to the machine hostname so a snapshot is
+// always attributable; the owner is never blank.
+func TestFleetExportDefaultsOwnerToHostname(t *testing.T) {
+	proj, _ := fixtureProject(t)
+	app, out, errBuf := newApp()
+	code := app.Execute(context.Background(), []string{"fleet", "export", "--dir", t.TempDir(), "--path", proj})
+	if code != cli.ExitOK {
+		t.Fatalf("fleet export exit = %d, stderr=%s", code, errBuf.String())
+	}
+	if !strings.Contains(out.String(), "wrote fleet snapshot for") || strings.Contains(out.String(), `for "":`) {
+		t.Errorf("export should name a non-empty default owner:\n%s", out.String())
+	}
+}
+
 // fleet show over an empty dir guides the user rather than erroring.
 func TestFleetShowEmptyDir(t *testing.T) {
 	empty := filepath.Join(t.TempDir(), "none")
