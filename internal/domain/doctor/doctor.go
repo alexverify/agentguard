@@ -22,14 +22,32 @@ const (
 
 // Check is one named diagnostic result.
 type Check struct {
-	Name   string
-	Status Status
-	Detail string
+	Name   string `json:"name"`
+	Status Status `json:"status"`
+	Detail string `json:"detail"`
 }
 
 // Report is an ordered set of checks.
 type Report struct {
 	Checks []Check
+}
+
+// Wire is the machine-readable form of a report (doctor --json): the checks
+// plus the derived summary, so a CI consumer can act on it without re-deriving
+// the counts.
+type Wire struct {
+	Checks   []Check `json:"checks"`
+	Warnings int     `json:"warnings"`
+	Healthy  bool    `json:"healthy"`
+}
+
+// Wire returns the JSON-serializable view of the report.
+func (r Report) Wire() Wire {
+	checks := r.Checks
+	if checks == nil {
+		checks = []Check{}
+	}
+	return Wire{Checks: checks, Warnings: r.Warnings(), Healthy: r.Healthy()}
 }
 
 // Add appends a check and returns the report, so checks compose left to right.
