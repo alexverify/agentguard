@@ -135,7 +135,7 @@ Commands:
   unwrap    Restore the original MCP config
   audit     Summarize or list the MCP shim's audit log (audit push uploads it to a server)
   alerts    List team alerts from the control plane (drift, quarantine, blocked egress)
-  reputation Look up content hashes in the control plane's reputation corpus
+  reputation Look up content hashes in the reputation corpus (reputation export builds one from approvals)
   record-use   Record an artifact activation (called by a host-tool hook)
   install-hooks Install host-tool hooks that feed usage telemetry (--status, --uninstall)
   dashboard Serve a local read-only web dashboard (loopback)
