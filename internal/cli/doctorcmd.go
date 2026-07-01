@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -28,6 +29,7 @@ func (a *App) runDoctor(ctx context.Context, args []string) int {
 	settings := fs.String("settings", "", "host-tool settings file to check for hooks (default: ~/.claude/settings.json)")
 	server := fs.String("server", envOr("EYEBROW_SERVER", ""), "control-plane URL to probe (opt-in)")
 	token := fs.String("token", envOr("EYEBROW_TOKEN", ""), "machine token for the control plane")
+	jsonOut := fs.Bool("json", false, "machine-readable JSON output")
 	if err := fs.Parse(args); err != nil {
 		return ExitUsage
 	}
@@ -37,6 +39,14 @@ func (a *App) runDoctor(ctx context.Context, args []string) int {
 	r = a.doctorSandbox(r)
 	r = a.doctorHooks(*settings, r)
 	r = a.doctorServer(ctx, *server, *token, r)
+	if *jsonOut {
+		b, err := json.MarshalIndent(r.Wire(), "", "  ")
+		if err != nil {
+			return a.fail("doctor", err)
+		}
+		fmt.Fprintf(a.Stdout, "%s\n", b)
+		return ExitOK
+	}
 	fmt.Fprintf(a.Stdout, "%s doctor\n\n", buildinfo.Name)
 	fmt.Fprint(a.Stdout, r.Render())
 	return ExitOK

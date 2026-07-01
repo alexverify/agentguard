@@ -2,12 +2,42 @@ package cli_test
 
 import (
 	"context"
+	"encoding/json"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/alexverify/eyebrow/internal/cli"
+	"github.com/alexverify/eyebrow/internal/domain/doctor"
 )
+
+func TestDoctorJSONOutput(t *testing.T) {
+	ctx := context.Background()
+	dir, lock := fixtureProject(t)
+	t.Setenv("EYEBROW_SERVER", "")
+	t.Setenv("EYEBROW_TOKEN", "")
+
+	app, out, _ := newApp()
+	code := app.Execute(ctx, []string{"doctor", "--json", "--path", dir, "--lockfile", lock, "--settings", filepath.Join(dir, "settings.json")})
+	if code != cli.ExitOK {
+		t.Fatalf("doctor --json exit = %d", code)
+	}
+	var w doctor.Wire
+	if err := json.Unmarshal(out.Bytes(), &w); err != nil {
+		t.Fatalf("doctor --json is not valid JSON: %v\n%s", err, out.String())
+	}
+	if len(w.Checks) == 0 {
+		t.Fatal("expected checks in the JSON report")
+	}
+	// No lockfile yet → at least one warning, reflected in the summary.
+	if w.Warnings < 1 || w.Healthy {
+		t.Errorf("expected warnings>=1 and healthy=false, got %+v", w)
+	}
+	// JSON mode must not leak the human-readable header.
+	if strings.Contains(out.String(), "doctor\n\n") {
+		t.Errorf("json output should not include the text header:\n%s", out.String())
+	}
+}
 
 func TestDoctorReportsToolsAndLockfile(t *testing.T) {
 	ctx := context.Background()
