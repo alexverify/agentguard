@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -48,6 +49,47 @@ func TestSBOMWritesToFile(t *testing.T) {
 	}
 	if !strings.Contains(string(raw), "bomFormat") && !strings.Contains(string(raw), "CycloneDX") {
 		t.Errorf("written file is not a CycloneDX document:\n%s", string(raw))
+	}
+}
+
+// sbom --format spdx emits an SPDX 2.3 document instead of CycloneDX.
+func TestSBOMEmitsSPDX(t *testing.T) {
+	ctx := context.Background()
+	dir, lock := fixtureProject(t)
+
+	app, _, errBuf := newApp()
+	if code := app.Execute(ctx, []string{"scan", "--path", dir, "--lockfile", lock}); code != cli.ExitOK {
+		t.Fatalf("scan exit = %d, stderr=%s", code, errBuf.String())
+	}
+
+	app, out, errBuf := newApp()
+	if code := app.Execute(ctx, []string{"sbom", "--lockfile", lock, "--format", "spdx"}); code != cli.ExitOK {
+		t.Fatalf("sbom --format spdx exit = %d, stderr=%s", code, errBuf.String())
+	}
+	var doc struct {
+		SPDXVersion string `json:"spdxVersion"`
+		DataLicense string `json:"dataLicense"`
+		Packages    []struct {
+			SPDXID string `json:"SPDXID"`
+		} `json:"packages"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &doc); err != nil {
+		t.Fatalf("spdx output is not valid JSON: %v\n%s", err, out.String())
+	}
+	if doc.SPDXVersion != "SPDX-2.3" || doc.DataLicense != "CC0-1.0" {
+		t.Errorf("not an SPDX 2.3 document: %+v", doc)
+	}
+	if len(doc.Packages) == 0 {
+		t.Errorf("expected at least one package:\n%s", out.String())
+	}
+}
+
+// An unknown --format is a usage error, not a silent fallback.
+func TestSBOMRejectsUnknownFormat(t *testing.T) {
+	dir, lock := fixtureProject(t)
+	app, _, _ := newApp()
+	if code := app.Execute(context.Background(), []string{"sbom", "--path", dir, "--lockfile", lock, "--format", "bogus"}); code != cli.ExitUsage {
+		t.Errorf("unknown format exit = %d, want %d", code, cli.ExitUsage)
 	}
 }
 

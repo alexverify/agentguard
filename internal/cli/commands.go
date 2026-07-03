@@ -257,6 +257,7 @@ func (a *App) runSBOM(ctx context.Context, args []string) int {
 	fs := a.flagSet("sbom")
 	lock := fs.String("lockfile", "eyebrowlock.json", "lockfile to export")
 	outPath := fs.String("o", "", "write to this file instead of stdout")
+	format := fs.String("format", "cyclonedx", "SBOM format: cyclonedx | spdx")
 	if err := fs.Parse(args); err != nil {
 		return ExitUsage
 	}
@@ -264,8 +265,21 @@ func (a *App) runSBOM(ctx context.Context, args []string) int {
 	if err != nil {
 		return a.fail("sbom", err)
 	}
-	bom := sbom.Build(lf, a.Clock.Now().UTC().Format(time.RFC3339))
-	b, err := json.MarshalIndent(bom, "", "  ")
+	ts := a.Clock.Now().UTC().Format(time.RFC3339)
+	var doc any
+	var count int
+	switch *format {
+	case "cyclonedx":
+		bom := sbom.Build(lf, ts)
+		doc, count = bom, len(bom.Components)
+	case "spdx":
+		d := sbom.BuildSPDX(lf, ts)
+		doc, count = d, len(d.Packages)
+	default:
+		fmt.Fprintf(a.Stderr, "sbom: unknown format %q (want cyclonedx or spdx)\n", *format)
+		return ExitUsage
+	}
+	b, err := json.MarshalIndent(doc, "", "  ")
 	if err != nil {
 		return a.fail("sbom", err)
 	}
@@ -274,7 +288,7 @@ func (a *App) runSBOM(ctx context.Context, args []string) int {
 		if err := os.WriteFile(*outPath, b, 0o644); err != nil {
 			return a.fail("sbom", err)
 		}
-		fmt.Fprintf(a.Stdout, "wrote %s (%d component(s))\n", *outPath, len(bom.Components))
+		fmt.Fprintf(a.Stdout, "wrote %s (%d component(s))\n", *outPath, count)
 		return ExitOK
 	}
 	_, _ = a.Stdout.Write(b)
