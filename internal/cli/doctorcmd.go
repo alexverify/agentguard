@@ -30,6 +30,7 @@ func (a *App) runDoctor(ctx context.Context, args []string) int {
 	server := fs.String("server", envOr("EYEBROW_SERVER", ""), "control-plane URL to probe (opt-in)")
 	token := fs.String("token", envOr("EYEBROW_TOKEN", ""), "machine token for the control plane")
 	jsonOut := fs.Bool("json", false, "machine-readable JSON output")
+	strict := fs.Bool("strict", false, "exit non-zero (1) when any check warns — for CI gating")
 	if err := fs.Parse(args); err != nil {
 		return ExitUsage
 	}
@@ -40,17 +41,23 @@ func (a *App) runDoctor(ctx context.Context, args []string) int {
 	r = a.doctorSandbox(r)
 	r = a.doctorHooks(*settings, r)
 	r = a.doctorServer(ctx, *server, *token, r)
+	// By default doctor is a report, not a gate (always 0); --strict opts into
+	// the CI contract where an unhealthy environment fails the build.
+	code := ExitOK
+	if *strict && !r.Healthy() {
+		code = ExitDrift
+	}
 	if *jsonOut {
 		b, err := json.MarshalIndent(r.Wire(), "", "  ")
 		if err != nil {
 			return a.fail("doctor", err)
 		}
 		fmt.Fprintf(a.Stdout, "%s\n", b)
-		return ExitOK
+		return code
 	}
 	fmt.Fprintf(a.Stdout, "%s doctor\n\n", buildinfo.Name)
 	fmt.Fprint(a.Stdout, r.Render())
-	return ExitOK
+	return code
 }
 
 // doctorTools reports how much of the attack surface discovery can see in scope.

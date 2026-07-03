@@ -39,6 +39,35 @@ func TestDoctorJSONOutput(t *testing.T) {
 	}
 }
 
+func TestDoctorStrictGatesOnWarnings(t *testing.T) {
+	ctx := context.Background()
+	dir, lock := fixtureProject(t)
+	t.Setenv("EYEBROW_SERVER", "")
+	t.Setenv("EYEBROW_TOKEN", "")
+	settings := filepath.Join(dir, "settings.json")
+
+	// Before scan the lockfile is missing → a warning → --strict exits non-zero,
+	// even though plain doctor still exits 0.
+	app, _, _ := newApp()
+	if code := app.Execute(ctx, []string{"doctor", "--path", dir, "--lockfile", lock, "--settings", settings}); code != cli.ExitOK {
+		t.Fatalf("plain doctor exit = %d, want 0", code)
+	}
+	app, _, _ = newApp()
+	if code := app.Execute(ctx, []string{"doctor", "--strict", "--path", dir, "--lockfile", lock, "--settings", settings}); code != cli.ExitDrift {
+		t.Errorf("strict doctor with a warning exit = %d, want %d", code, cli.ExitDrift)
+	}
+
+	// After scan there are no warnings, so --strict exits 0.
+	app, _, _ = newApp()
+	if code := app.Execute(ctx, []string{"scan", "--path", dir, "--lockfile", lock}); code != cli.ExitOK {
+		t.Fatal("scan failed")
+	}
+	app, _, _ = newApp()
+	if code := app.Execute(ctx, []string{"doctor", "--strict", "--path", dir, "--lockfile", lock, "--settings", settings}); code != cli.ExitOK {
+		t.Errorf("strict doctor on a healthy env exit = %d, want 0", code)
+	}
+}
+
 func TestDoctorReportsToolsAndLockfile(t *testing.T) {
 	ctx := context.Background()
 	dir, lock := fixtureProject(t)
