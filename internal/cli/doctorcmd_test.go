@@ -76,6 +76,33 @@ func TestDoctorReportsToolsAndLockfile(t *testing.T) {
 	}
 }
 
+func TestDoctorReportsQuarantine(t *testing.T) {
+	ctx := context.Background()
+	dir, lock := fixtureProject(t)
+
+	// A clean scan: the policy check is ok (nothing quarantined or frozen).
+	app, _, _ := newApp()
+	if code := app.Execute(ctx, []string{"scan", "--path", dir, "--lockfile", lock}); code != cli.ExitOK {
+		t.Fatal("scan failed")
+	}
+	app, out, _ := newApp()
+	app.Execute(ctx, []string{"doctor", "--path", dir, "--lockfile", lock})
+	if !strings.Contains(out.String(), "policy") {
+		t.Errorf("doctor should include a policy check:\n%s", out.String())
+	}
+
+	// Quarantine everything: the policy check becomes a warning naming the count.
+	app, _, errBuf := newApp()
+	if code := app.Execute(ctx, []string{"quarantine", "--all", "--lockfile", lock}); code != cli.ExitOK {
+		t.Fatalf("quarantine exit = %d, stderr=%s", code, errBuf.String())
+	}
+	app, out, _ = newApp()
+	app.Execute(ctx, []string{"doctor", "--path", dir, "--lockfile", lock})
+	if !strings.Contains(out.String(), "quarantined") || !strings.Contains(out.String(), "warn") {
+		t.Errorf("quarantined artifacts should raise a policy warning:\n%s", out.String())
+	}
+}
+
 func TestDoctorReportsSandbox(t *testing.T) {
 	dir, lock := fixtureProject(t)
 	app, out, _ := newApp()

@@ -36,6 +36,7 @@ func (a *App) runDoctor(ctx context.Context, args []string) int {
 	var r doctor.Report
 	r = a.doctorTools(ctx, *path, *global, r)
 	r = a.doctorLockfile(ctx, *lock, r)
+	r = a.doctorPolicy(ctx, *lock, r)
 	r = a.doctorSandbox(r)
 	r = a.doctorHooks(*settings, r)
 	r = a.doctorServer(ctx, *server, *token, r)
@@ -118,6 +119,35 @@ func (a *App) doctorSandbox(r doctor.Report) doctor.Report {
 		return r.Add("sandbox", doctor.StatusOK, be.Name()+" available (runtime confinement active)")
 	}
 	return r.Add("sandbox", doctor.StatusInfo, "no OS sandbox on this host (wrap runs unconfined)")
+}
+
+// doctorPolicy surfaces artifacts held under a manual policy state. Quarantined
+// artifacts silently fail the gate, so an operator who forgot one is warned;
+// frozen pins are intentional, so they are only noted. When no lockfile is
+// readable the row is skipped — doctorLockfile already reported that.
+func (a *App) doctorPolicy(ctx context.Context, path string, r doctor.Report) doctor.Report {
+	lf, err := lockstore.New().Read(ctx, path)
+	if err != nil {
+		return r
+	}
+	quarantined, frozen := 0, 0
+	for _, e := range lf.Artifacts {
+		if e.Quarantined {
+			quarantined++
+		}
+		if e.Frozen {
+			frozen++
+		}
+	}
+	switch {
+	case quarantined > 0:
+		return r.Add("policy", doctor.StatusWarn,
+			fmt.Sprintf("%d artifact(s) quarantined (blocked from shipping); %d frozen", quarantined, frozen))
+	case frozen > 0:
+		return r.Add("policy", doctor.StatusInfo, fmt.Sprintf("%d artifact(s) frozen (pinned)", frozen))
+	default:
+		return r.Add("policy", doctor.StatusOK, "no quarantined or frozen artifacts")
+	}
 }
 
 // doctorLockfile reports whether an approved baseline exists and is signed.
