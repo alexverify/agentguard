@@ -28,6 +28,22 @@ const (
 	TypeContext   Type = "context"
 )
 
+// Types returns every artifact type in a stable order, the single source used
+// for validation and help text (e.g. the `list --type` filter).
+func Types() []Type {
+	return []Type{TypeSkill, TypeMCPServer, TypePlugin, TypeSubagent, TypeHook, TypeRules, TypeContext}
+}
+
+// IsType reports whether s is a known artifact type.
+func IsType(s string) bool {
+	for _, ty := range Types() {
+		if string(ty) == s {
+			return true
+		}
+	}
+	return false
+}
+
 // SourceKind describes how an artifact's code or content is obtained, which
 // determines how the resolver pins it and what serves as its integrity anchor.
 type SourceKind string
