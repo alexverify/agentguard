@@ -129,7 +129,7 @@ Commands:
   diff      Show what changed since the last lockfile (informational)
   digest    Summarize what changed since the lockfile (what to review)
   sbom      Export the lockfile as an SBOM (--format cyclonedx|spdx, --o file)
-  list      Print the current inventory across tools
+  list      Print the current inventory across tools (--tool, --type to filter)
   approve   Mark artifact(s) as approved in the lockfile
   quarantine Disable artifact(s) pending review (--remove to lift)
   freeze    Pin artifact(s); any later drift fails the gate (--remove to lift)

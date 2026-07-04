@@ -19,6 +19,7 @@ import (
 	"github.com/alexverify/eyebrow/internal/app/ports"
 	"github.com/alexverify/eyebrow/internal/app/scan"
 	"github.com/alexverify/eyebrow/internal/app/verify"
+	"github.com/alexverify/eyebrow/internal/domain/artifact"
 	"github.com/alexverify/eyebrow/internal/domain/finding"
 	"github.com/alexverify/eyebrow/internal/domain/lockfile"
 	"github.com/alexverify/eyebrow/internal/domain/posture"
@@ -298,7 +299,13 @@ func (a *App) runSBOM(ctx context.Context, args []string) int {
 func (a *App) runList(ctx context.Context, args []string) int {
 	fs := a.flagSet("list")
 	c := bindCommon(fs)
+	tool := fs.String("tool", "", "only artifacts from this tool (e.g. cursor)")
+	typ := fs.String("type", "", "only artifacts of this type ("+strings.Join(typeNames(), "|")+")")
 	if err := fs.Parse(args); err != nil {
+		return ExitUsage
+	}
+	if *typ != "" && !artifact.IsType(*typ) {
+		fmt.Fprintf(a.Stderr, "list: unknown --type %q (want %s)\n", *typ, strings.Join(typeNames(), ", "))
 		return ExitUsage
 	}
 	svc := a.scanService(*c.json, *c.rules)
@@ -306,10 +313,40 @@ func (a *App) runList(ctx context.Context, args []string) int {
 	if err != nil {
 		return a.fail("list", err)
 	}
+	lf.Artifacts = filterEntries(lf.Artifacts, *tool, *typ)
 	if err := reporter(*c.json).List(a.Stdout, lf); err != nil {
 		return a.fail("list", err)
 	}
 	return ExitOK
+}
+
+// filterEntries narrows a lockfile's entries to those matching a tool and/or
+// type. An empty selector matches everything; tool matching is case-insensitive.
+func filterEntries(entries []lockfile.Entry, tool, typ string) []lockfile.Entry {
+	if tool == "" && typ == "" {
+		return entries
+	}
+	out := make([]lockfile.Entry, 0, len(entries))
+	for _, e := range entries {
+		if tool != "" && !strings.EqualFold(e.Tool, tool) {
+			continue
+		}
+		if typ != "" && string(e.Type) != typ {
+			continue
+		}
+		out = append(out, e)
+	}
+	return out
+}
+
+// typeNames lists the valid --type values for help and error text.
+func typeNames() []string {
+	types := artifact.Types()
+	out := make([]string, len(types))
+	for i, ty := range types {
+		out[i] = string(ty)
+	}
+	return out
 }
 
 func (a *App) runApprove(ctx context.Context, args []string) int {

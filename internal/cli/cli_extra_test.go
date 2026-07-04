@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"os"
@@ -10,6 +11,17 @@ import (
 
 	"github.com/alexverify/eyebrow/internal/cli"
 )
+
+// mustWrite writes content to path, creating parent directories as needed.
+func mustWrite(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
 
 func TestKeyWithoutSubcommand(t *testing.T) {
 	app, _, _ := newApp()
@@ -49,6 +61,61 @@ func TestSBOMWritesToFile(t *testing.T) {
 	}
 	if !strings.Contains(string(raw), "bomFormat") && !strings.Contains(string(raw), "CycloneDX") {
 		t.Errorf("written file is not a CycloneDX document:\n%s", string(raw))
+	}
+}
+
+// list --tool and --type narrow the inventory to matching artifacts.
+func TestListFiltersByToolAndType(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	lock := filepath.Join(dir, "eyebrowlock.json")
+	// A Claude Code MCP server and a Cursor rule in the same project.
+	mustWrite(t, filepath.Join(dir, ".mcp.json"), `{"mcpServers":{"cc":{"command":"./s.sh"}}}`)
+	mustWrite(t, filepath.Join(dir, "s.sh"), "#!/bin/sh\necho hi\n")
+	mustWrite(t, filepath.Join(dir, ".cursor", "rules", "style.mdc"), "use tabs\n")
+
+	decode := func(out *bytes.Buffer) []struct{ Tool, Type, Name string } {
+		var arts []struct{ Tool, Type, Name string }
+		if err := json.Unmarshal(out.Bytes(), &arts); err != nil {
+			t.Fatalf("list --json not parseable: %v\n%s", err, out.String())
+		}
+		return arts
+	}
+
+	// --tool cursor → only cursor artifacts.
+	app, out, _ := newApp()
+	if code := app.Execute(ctx, []string{"list", "--json", "--path", dir, "--lockfile", lock, "--tool", "cursor"}); code != cli.ExitOK {
+		t.Fatalf("list --tool exit = %d", code)
+	}
+	arts := decode(out)
+	if len(arts) == 0 {
+		t.Fatalf("expected cursor artifacts, got none:\n%s", out.String())
+	}
+	for _, a := range arts {
+		if a.Tool != "cursor" {
+			t.Errorf("--tool cursor leaked %q artifact %q", a.Tool, a.Name)
+		}
+	}
+
+	// --type mcp_server → only MCP servers, regardless of tool.
+	app, out, _ = newApp()
+	if code := app.Execute(ctx, []string{"list", "--json", "--path", dir, "--lockfile", lock, "--type", "mcp_server"}); code != cli.ExitOK {
+		t.Fatalf("list --type exit = %d", code)
+	}
+	arts = decode(out)
+	if len(arts) == 0 {
+		t.Fatalf("expected mcp_server artifacts, got none:\n%s", out.String())
+	}
+	for _, a := range arts {
+		if a.Type != "mcp_server" {
+			t.Errorf("--type mcp_server leaked %q artifact %q", a.Type, a.Name)
+		}
+	}
+
+	// An unknown --type is a usage error, not an empty success.
+	app, _, _ = newApp()
+	if code := app.Execute(ctx, []string{"list", "--path", dir, "--lockfile", lock, "--type", "bogus"}); code != cli.ExitUsage {
+		t.Errorf("unknown --type exit = %d, want %d", code, cli.ExitUsage)
 	}
 }
 
