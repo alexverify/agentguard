@@ -127,7 +127,7 @@ Commands:
   scan      Discover, resolve, hash, and analyze artifacts; write the lockfile
   verify    Recompute and diff against the lockfile (rug-pull detector)
   diff      Show what changed since the last lockfile (informational)
-  digest    Summarize what changed since the lockfile (what to review)
+  digest    Summarize what changed since the lockfile (--json for machine output)
   sbom      Export the lockfile as an SBOM (--format cyclonedx|spdx, --o file)
   list      Print the current inventory across tools (--tool, --type to filter)
   approve   Mark artifact(s) as approved in the lockfile

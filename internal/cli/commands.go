@@ -187,14 +187,27 @@ func (a *App) runDigest(ctx context.Context, args []string) int {
 		fmt.Fprintf(a.Stderr, "digest: history: %v\n", err)
 	}
 
-	summary := digestSummary(locked, current)
-	fmt.Fprint(a.Stdout, summary)
+	report := buildDigest(locked, current)
+	summary := renderDigest(report)
+	if *c.json {
+		b, err := json.MarshalIndent(report, "", "  ")
+		if err != nil {
+			return a.fail("digest", err)
+		}
+		fmt.Fprintf(a.Stdout, "%s\n", b)
+	} else {
+		fmt.Fprint(a.Stdout, summary)
+	}
+	// The webhook always receives the human-readable summary (Slack-compatible),
+	// independent of the stdout format.
 	if *notifyURL != "" {
 		if err := notify.New().Post(ctx, *notifyURL, summary); err != nil {
 			fmt.Fprintf(a.Stderr, "digest: notify: %v\n", err)
 			return ExitError
 		}
-		fmt.Fprintln(a.Stdout, "\nsent digest to webhook")
+		if !*c.json {
+			fmt.Fprintln(a.Stdout, "\nsent digest to webhook")
+		}
 	}
 	return ExitOK
 }
