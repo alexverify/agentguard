@@ -132,6 +132,31 @@ func TestDoctorReportsQuarantine(t *testing.T) {
 	}
 }
 
+func TestDoctorReportsSigningKey(t *testing.T) {
+	ctx := context.Background()
+	dir, lock := fixtureProject(t)
+	setHome(t, t.TempDir())
+	keyPath := filepath.Join(t.TempDir(), "key")
+
+	// No key yet: an informational note (signing is opt-in), doctor exits 0.
+	app, out, _ := newApp()
+	app.Execute(ctx, []string{"doctor", "--path", dir, "--lockfile", lock, "--key", keyPath})
+	if !strings.Contains(out.String(), "signing") || !strings.Contains(out.String(), "no signing key") {
+		t.Errorf("expected a 'no signing key' note:\n%s", out.String())
+	}
+
+	// After `key show` creates the identity, doctor reports it available.
+	app, _, errBuf := newApp()
+	if code := app.Execute(ctx, []string{"key", "show", "--key", keyPath}); code != cli.ExitOK {
+		t.Fatalf("key show exit = %d, stderr=%s", code, errBuf.String())
+	}
+	app, out, _ = newApp()
+	app.Execute(ctx, []string{"doctor", "--path", dir, "--lockfile", lock, "--key", keyPath})
+	if !strings.Contains(out.String(), "signing key available") {
+		t.Errorf("expected doctor to report the signing key available:\n%s", out.String())
+	}
+}
+
 func TestDoctorReportsSandbox(t *testing.T) {
 	dir, lock := fixtureProject(t)
 	app, out, _ := newApp()

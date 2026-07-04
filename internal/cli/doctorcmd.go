@@ -11,6 +11,7 @@ import (
 	"github.com/alexverify/eyebrow/internal/adapters/discover"
 	"github.com/alexverify/eyebrow/internal/adapters/hookconfig"
 	"github.com/alexverify/eyebrow/internal/adapters/lockstore"
+	"github.com/alexverify/eyebrow/internal/adapters/sign"
 	"github.com/alexverify/eyebrow/internal/app/ports"
 	"github.com/alexverify/eyebrow/internal/buildinfo"
 	"github.com/alexverify/eyebrow/internal/client"
@@ -27,6 +28,7 @@ func (a *App) runDoctor(ctx context.Context, args []string) int {
 	global := fs.Bool("global", false, "also check machine-wide (global) tool configs")
 	lock := fs.String("lockfile", "eyebrowlock.json", "lockfile path")
 	settings := fs.String("settings", "", "host-tool settings file to check for hooks (default: ~/.claude/settings.json)")
+	key := fs.String("key", a.keyPath(), "local signing key path to check")
 	server := fs.String("server", envOr("EYEBROW_SERVER", ""), "control-plane URL to probe (opt-in)")
 	token := fs.String("token", envOr("EYEBROW_TOKEN", ""), "machine token for the control plane")
 	jsonOut := fs.Bool("json", false, "machine-readable JSON output")
@@ -38,6 +40,7 @@ func (a *App) runDoctor(ctx context.Context, args []string) int {
 	r = a.doctorTools(ctx, *path, *global, r)
 	r = a.doctorLockfile(ctx, *lock, r)
 	r = a.doctorPolicy(ctx, *lock, r)
+	r = a.doctorSigning(*key, r)
 	r = a.doctorSandbox(r)
 	r = a.doctorHooks(*settings, r)
 	r = a.doctorServer(ctx, *server, *token, r)
@@ -155,6 +158,22 @@ func (a *App) doctorPolicy(ctx context.Context, path string, r doctor.Report) do
 	default:
 		return r.Add("policy", doctor.StatusOK, "no quarantined or frozen artifacts")
 	}
+}
+
+// doctorSigning reports whether a local signing key exists — the prerequisite
+// for `eyebrow sign`. No key is informational, not a warning: signing is opt-in
+// (a single user can verify their own unsigned lockfile), so an absent key is a
+// normal state, not something broken.
+func (a *App) doctorSigning(keyPath string, r doctor.Report) doctor.Report {
+	s, err := sign.Load(keyPath)
+	if err != nil {
+		return r.Add("signing", doctor.StatusInfo, "no signing key yet (run '"+buildinfo.Name+" key show' to create one)")
+	}
+	pub := s.PublicKeyBase64()
+	if len(pub) > 12 {
+		pub = pub[:12]
+	}
+	return r.Add("signing", doctor.StatusOK, "signing key available ("+pub+"…)")
 }
 
 // doctorLockfile reports whether an approved baseline exists and is signed.

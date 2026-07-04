@@ -145,7 +145,7 @@ Commands:
   dashboard Serve a local read-only web dashboard (loopback)
   fleet     Export/push this machine's snapshot, print the team blast-radius, or verify (CI gate)
   serve     Run the self-hostable team control plane (opt-in; ingests snapshots)
-  doctor    Check the local environment (tools, lockfile, policy, sandbox, hooks, server; --strict to gate CI)
+  doctor    Check the local environment (tools, lockfile, policy, signing, sandbox, hooks, server; --strict to gate CI)
   completion Print a shell completion script (bash|zsh|fish)
   version   Print the version
   help      Show this help
