@@ -204,49 +204,90 @@ func (a *App) runDigest(ctx context.Context, args []string) int {
 // it stays in lockstep with the dashboard's interpretation of drift. The string
 // is printed to stdout and, optionally, posted to a webhook.
 func digestSummary(locked, current lockfile.Lockfile) string {
+	return renderDigest(buildDigest(locked, current))
+}
+
+// digestChange is one artifact worth reviewing, with why (updated|drifted|new).
+type digestChange struct {
+	Name  string `json:"name"`
+	Label string `json:"label"`
+}
+
+// digestFindings is the severity breakdown of static-analysis findings.
+type digestFindings struct {
+	Total    int `json:"total"`
+	Critical int `json:"critical"`
+	High     int `json:"high"`
+	Medium   int `json:"medium"`
+	Low      int `json:"low"`
+}
+
+// digestReport is the structured "what should I review?" summary, shared by the
+// text renderer and the --json output so both stay in lockstep.
+type digestReport struct {
+	Artifacts int            `json:"artifacts"`
+	Unchanged int            `json:"unchanged"`
+	Updated   int            `json:"updated"`
+	Drifted   int            `json:"drifted"`
+	New       int            `json:"new"`
+	Findings  digestFindings `json:"findings"`
+	Changes   []digestChange `json:"changes"`
+}
+
+// buildDigest classifies the current inventory against the locked baseline. It
+// uses only the pure domain (Classify + finding counts), so it stays in lockstep
+// with the dashboard's interpretation of drift.
+func buildDigest(locked, current lockfile.Lockfile) digestReport {
 	classes := lockfile.Classify(locked, current)
-	var unchanged, updated, drifted, fresh int
-	type change struct{ name, label string }
-	var changes []change
+	r := digestReport{Artifacts: len(current.Artifacts), Changes: []digestChange{}}
 	for _, e := range current.Artifacts {
 		switch classes[e.ID] {
 		case lockfile.DriftClassUpdated:
-			updated++
-			changes = append(changes, change{e.Name, "updated"})
+			r.Updated++
+			r.Changes = append(r.Changes, digestChange{e.Name, "updated"})
 		case lockfile.DriftClassMutated, lockfile.DriftClassBroken:
-			drifted++
-			changes = append(changes, change{e.Name, "drifted"})
+			r.Drifted++
+			r.Changes = append(r.Changes, digestChange{e.Name, "drifted"})
 		case lockfile.DriftClassAdded:
-			fresh++
-			changes = append(changes, change{e.Name, "new"})
+			r.New++
+			r.Changes = append(r.Changes, digestChange{e.Name, "new"})
 		default:
-			unchanged++
+			r.Unchanged++
 		}
 	}
-
-	counts := map[finding.Severity]int{}
-	total := 0
 	for _, e := range current.Artifacts {
 		for _, f := range e.Findings {
-			counts[f.Severity]++
-			total++
+			r.Findings.Total++
+			switch f.Severity {
+			case finding.SeverityCritical:
+				r.Findings.Critical++
+			case finding.SeverityHigh:
+				r.Findings.High++
+			case finding.SeverityMedium:
+				r.Findings.Medium++
+			case finding.SeverityLow:
+				r.Findings.Low++
+			}
 		}
 	}
+	return r
+}
 
+// renderDigest formats a digest report as the human-readable summary.
+func renderDigest(r digestReport) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "eyebrow digest — %d artifact(s)\n", len(current.Artifacts))
+	fmt.Fprintf(&b, "eyebrow digest — %d artifact(s)\n", r.Artifacts)
 	fmt.Fprintf(&b, "  unchanged: %d\n  updated:   %d\n  drifted:   %d\n  new:       %d\n",
-		unchanged, updated, drifted, fresh)
+		r.Unchanged, r.Updated, r.Drifted, r.New)
 	fmt.Fprintf(&b, "  findings:  %d (critical=%d high=%d medium=%d low=%d)\n",
-		total, counts[finding.SeverityCritical], counts[finding.SeverityHigh],
-		counts[finding.SeverityMedium], counts[finding.SeverityLow])
-	if len(changes) == 0 {
+		r.Findings.Total, r.Findings.Critical, r.Findings.High, r.Findings.Medium, r.Findings.Low)
+	if len(r.Changes) == 0 {
 		fmt.Fprint(&b, "\nnothing changed since the lockfile — you're clear.\n")
 		return b.String()
 	}
 	fmt.Fprint(&b, "\nchanges to review:\n")
-	for _, ch := range changes {
-		fmt.Fprintf(&b, "  [%s] %s\n", ch.label, ch.name)
+	for _, ch := range r.Changes {
+		fmt.Fprintf(&b, "  [%s] %s\n", ch.Label, ch.Name)
 	}
 	return b.String()
 }
