@@ -2,11 +2,56 @@ package cli_test
 
 import (
 	"context"
+	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/alexverify/eyebrow/internal/cli"
 )
+
+// usageCommandLine matches a command entry in the help text's Commands section:
+// two leading spaces, the command token, then its description. The "Usage:"
+// example line (`  eyebrow <command> …`) is filtered out by name below.
+var usageCommandLine = regexp.MustCompile(`(?m)^  ([a-z][a-z-]+) +\S`)
+
+// usageCommands extracts the user-facing command names from `eyebrow help`,
+// the single source that must stay in step with shell completion.
+func usageCommands(t *testing.T) []string {
+	t.Helper()
+	app, _, errBuf := newApp()
+	if code := app.Execute(context.Background(), []string{"help"}); code != cli.ExitOK {
+		t.Fatalf("help exit = %d", code)
+	}
+	var cmds []string
+	for _, m := range usageCommandLine.FindAllStringSubmatch(errBuf.String(), -1) {
+		if m[1] != "eyebrow" { // the Usage: example, not a command
+			cmds = append(cmds, m[1])
+		}
+	}
+	if len(cmds) < 5 {
+		t.Fatalf("parsed too few usage commands (%d): %v", len(cmds), cmds)
+	}
+	return cmds
+}
+
+// Completion must offer every command the help text advertises. Deriving the
+// expectation from usage (not a second hand-kept list) means adding a command
+// to help without wiring completion fails here — the drift that hid `doctor`.
+func TestCompletionMatchesUsageCommands(t *testing.T) {
+	want := usageCommands(t)
+	for _, shell := range []string{"bash", "zsh", "fish"} {
+		app, out, _ := newApp()
+		if code := app.Execute(context.Background(), []string{"completion", shell}); code != cli.ExitOK {
+			t.Fatalf("%s completion exit = %d", shell, code)
+		}
+		script := out.String()
+		for _, c := range want {
+			if !strings.Contains(script, c) {
+				t.Errorf("%s completion is missing command %q (advertised in help)", shell, c)
+			}
+		}
+	}
+}
 
 func TestCompletionRequiresShell(t *testing.T) {
 	app, _, _ := newApp()
@@ -30,7 +75,7 @@ func TestCompletionScriptsListEveryCommand(t *testing.T) {
 		"scan", "verify", "diff", "digest", "sbom", "list", "approve",
 		"quarantine", "freeze", "sign", "key", "wrap", "unwrap", "audit",
 		"alerts", "reputation", "record-use", "install-hooks", "dashboard",
-		"fleet", "serve",
+		"fleet", "serve", "doctor", "completion",
 	}
 	for _, shell := range []string{"bash", "zsh", "fish"} {
 		app, out, _ := newApp()
