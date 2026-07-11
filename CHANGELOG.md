@@ -9,9 +9,27 @@ Exit codes are part of the CLI contract and are covered by SemVer:
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-11
+
+### Added
+
+- **`doctor`**: environment health check — required tools, lockfile state,
+  quarantined artifacts, frozen pins, sandbox availability, usage-hook
+  installation, control-plane reachability, local signing key; `--json` for
+  machines and `--strict` to exit non-zero on warnings in CI.
+- **SBOM**: `sbom --format` renders the lockfile as CycloneDX or SPDX 2.3.
+- **Shell completion**: `completion` for bash, zsh, and fish.
+- **Claude Desktop**: MCP-server discovery joins the default tool set.
+- **`digest --json`** for machine-readable review summaries; `list --tool`
+  and `list --type` filters.
+- **Reputation export**: build a hash-only trust corpus from local approvals.
+- **Release provenance**: artifacts are attested with GitHub build
+  provenance — verify any download with
+  `gh attestation verify <archive> -R alexverify/eyebrow`.
+
 ### Internal
 
-- CI now runs the configured `.golangci.yml` linters on pull requests
+- CI runs the configured `.golangci.yml` linters on pull requests
   (`only-new-issues`), gating new code without forcing a backlog cleanup.
 - Refactors with no behavior change: command errors route through a shared
   `fail` helper; the dashboard backend is split by responsibility
@@ -63,6 +81,7 @@ Initial release.
 - **`fleet`**: export/push a machine snapshot and print the team blast-radius
   ("git is the backend").
 
-[Unreleased]: https://github.com/alexverify/eyebrow/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/alexverify/eyebrow/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/alexverify/eyebrow/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/alexverify/eyebrow/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/alexverify/eyebrow/releases/tag/v0.1.0
