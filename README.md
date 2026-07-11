@@ -33,26 +33,38 @@ changes.
 brew install alexverify/tap/eyebrow
 ```
 
+**From source** — the strongest trust path; needs only Go 1.25+:
+
+```sh
+go install github.com/alexverify/eyebrow/cmd/eyebrow@latest
+# or
+git clone https://github.com/alexverify/eyebrow && cd eyebrow && make install
+```
+
 **Shell installer** (no Homebrew; downloads a checksum-verified binary):
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/alexverify/eyebrow/main/install.sh | sh
 ```
 
-**Go users:**
-
-```sh
-go install github.com/alexverify/eyebrow/cmd/eyebrow@latest
-```
-
 **Manual:** grab a static binary from the
-[releases page](https://github.com/alexverify/eyebrow/releases) and verify it:
+[releases page](https://github.com/alexverify/eyebrow/releases).
+
+### Verify what you downloaded
+
+Release binaries are **unsigned by choice** (no paid Apple/Windows signing
+accounts — the Homebrew cask clears macOS quarantine on install). Every
+release ships free, cryptographic verification instead:
 
 ```sh
+# checksum (also done automatically by install.sh)
 shasum -a 256 -c --ignore-missing checksums.txt
+
+# build provenance: proves this exact file came from this repo's release workflow
+gh attestation verify eyebrow_*.tar.gz -R alexverify/eyebrow
 ```
 
-Or build from source (Go 1.25+): `make build` → `./bin/eyebrow`.
+Prefer proof over trust? Build from source (above).
 
 ## Quickstart
 
@@ -64,6 +76,7 @@ make install          # build + install `eyebrow` onto your PATH (zero external 
 
 # From a project that uses Claude Code (has .mcp.json and/or .claude/skills):
 eyebrow scan            # discover, hash, analyze → writes eyebrowlock.json
+eyebrow doctor          # post-install health check: tools found, lockfile, keys
 eyebrow list            # pretty inventory across tools
 eyebrow verify          # recompute & diff vs the lockfile (rug-pull check)
 eyebrow verify --ci     # strict: apply the policy gate (see Policy below)
@@ -136,7 +149,7 @@ here" with no infrastructure.
 ```yaml
 steps:
   - uses: actions/checkout@v4
-  - uses: alexverify/eyebrow/action@v0.1.0
+  - uses: alexverify/eyebrow/action@v0.3.0
 ```
 
 One tag pins the action and the checksum-verified binary it installs; see
