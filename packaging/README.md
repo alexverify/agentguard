@@ -4,7 +4,7 @@ Release and distribution tooling: the GoReleaser config, the Homebrew cask, and 
 
 ## Outputs (GoReleaser)
 
-- GitHub Releases with signed checksums (macOS/Linux/Windows, amd64/arm64).
+- GitHub Releases with SHA-256 checksums and build-provenance attestation (macOS/Linux/Windows, amd64/arm64).
 - A Homebrew tap (`brew install alexverify/tap/eyebrow`) via the `homebrew_casks:` block.
 - `install.sh` (`curl | sh`) — checksum-verified binary download.
 

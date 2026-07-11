@@ -40,8 +40,8 @@ Exit codes are part of the CLI contract and are covered by SemVer:
 
 ### Added
 
-- **Distribution**: install via `npm i -g @alexverify/eyebrow` / `npx`, a
-  Homebrew cask, a checksum-verifying `install.sh`, and `go install`.
+- **Distribution**: install via a Homebrew cask, a checksum-verifying
+  `install.sh`, and `go install`.
 - **Dashboard** gained a per-finding code view (open a finding's source in a
   modal or full screen, with flagged-line highlighting and prev/next nav), an
   artifact source-file browser in the detail drawer, a plain-language

@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: alexverify/eyebrow/action@v0.1.0
+      - uses: alexverify/eyebrow/action@v0.3.0
 ```
 
 One tag pins both the action and the binary it installs: the pinned release
@@ -25,7 +25,7 @@ SHA instead, set the `version` input explicitly.
 
 | Input | Default | What |
 |---|---|---|
-| `version` | the action's own ref | Release tag of the binary to install (e.g. `v0.1.0`) |
+| `version` | the action's own ref | Release tag of the binary to install (e.g. `v0.3.0`) |
 | `path` | `.` | Project root to scan |
 | `lockfile` | `eyebrowlock.json` | Lockfile path |
 | `policy` | `eyebrow.policy.json` | Policy file applied by the gate |

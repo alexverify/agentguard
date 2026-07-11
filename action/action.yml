@@ -1,6 +1,6 @@
 # Composite Action wrapping `eyebrow verify --ci`.
 # The binary version defaults to the ref this action is pinned at, so
-# `uses: alexverify/eyebrow/action@v0.1.0` pins the action AND the binary
+# `uses: alexverify/eyebrow/action@v0.3.0` pins the action AND the binary
 # with a single tag, checksum-verified before it runs.
 name: eyebrow verify
 description: >-
@@ -14,7 +14,7 @@ branding:
 inputs:
   version:
     description: >-
-      eyebrow release tag to install (e.g. v0.1.0). Defaults to the ref the
+      eyebrow release tag to install (e.g. v0.3.0). Defaults to the ref the
       action is pinned at; required when pinning the action to a branch or SHA.
     default: ""
   path:
@@ -43,7 +43,7 @@ runs:
         version="${INPUT_VERSION:-${ACTION_REF}}"
         case "$version" in
           v[0-9]*) ;;
-          *) echo "::error::cannot derive a release version from ref '${version}'; set the 'version' input to an exact tag (e.g. v0.1.0)"; exit 1 ;;
+          *) echo "::error::cannot derive a release version from ref '${version}'; set the 'version' input to an exact tag (e.g. v0.3.0)"; exit 1 ;;
         esac
         case "${RUNNER_OS}" in
           Linux) os=linux ;;
