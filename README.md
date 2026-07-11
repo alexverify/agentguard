@@ -70,6 +70,8 @@ Prefer proof over trust? Build from source (above).
 
 ## Quickstart
 
+![eyebrow scan and digest in a project with a risky skill](docs/assets/demo.gif)
+
 ```sh
 make install          # build + install `eyebrow` onto your PATH (zero external deps)
                       #   installs to your Go bin; if `eyebrow` isn't found, add that
