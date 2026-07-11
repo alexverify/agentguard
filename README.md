@@ -18,6 +18,8 @@ post-audit modification — "rug pulls" — before they bite.
 > designed but not yet built. See
 > [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md).
 
+![eyebrow dashboard — inventory, findings, and drift at a glance](docs/assets/dashboard.png)
+
 ## Why
 
 Skills, MCP servers, and hooks run with your privileges and can change after you
