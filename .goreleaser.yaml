@@ -52,8 +52,11 @@ homebrew_casks:
     license: "MIT"
     # Skip auto-commit on snapshot builds (no token, no real release).
     skip_upload: auto
-    # eyebrow's release binaries are unsigned; strip the macOS quarantine
-    # xattr on install so Gatekeeper doesn't block the CLI.
+    # Release binaries are unsigned by choice (no paid Apple Developer
+    # account). The quarantine xattr is stripped on install so Gatekeeper
+    # doesn't block the CLI; users who want proof instead of trust can verify
+    # the archive's build provenance (`gh attestation verify`) and checksums,
+    # or build from source — see packaging/README.md "Trust model".
     hooks:
       post:
         install: |
