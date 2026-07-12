@@ -62,7 +62,8 @@ func (s *Server) handleScan(w http.ResponseWriter, r *http.Request) {
 	AttachLineDiffs(arts, s.deps.Blobs)
 	writeJSON(w, struct {
 		Artifacts []DashArtifact `json:"artifacts"`
-	}{Artifacts: arts})
+		Demo      bool           `json:"demo,omitempty"`
+	}{Artifacts: arts, Demo: s.deps.Demo})
 }
 
 // maxSourceBytes caps the file size the code-view endpoint will read, so a huge
