@@ -249,6 +249,10 @@ eyebrow dashboard --addr 127.0.0.1:9000 --path . --audit-dir ~/.eyebrow/audit
 eyebrow dashboard --fleet-dir .eyebrow/fleet --reputation eyebrow.reputation.json
 ```
 
+Set `EYEBROW_DEMO=1` to serve a built-in demo dataset instead of scanning this
+machine — every tab populated, mutations in-memory only, a "demo data" badge
+shown.
+
 It binds loopback only and rejects any request whose `Host` header isn't a
 loopback name (defeating DNS-rebinding from a page in your browser); there is
 no auth because there is no remotely reachable surface. The UI is a Next.js app
