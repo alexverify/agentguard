@@ -2,6 +2,11 @@
 // fictional-but-realistic environment that lights up every dashboard tab so
 // the product can be demoed on any machine without scanning anything real.
 // Mutations run against the in-memory state and vanish on restart.
+//
+// Known limitation: per-finding code views resolve against files on disk (see
+// handleSource), so they 404 in demo mode for every artifact except the
+// drifted one, whose line diff is served from the in-memory blobs wired up
+// below.
 package demodata
 
 import (
@@ -66,7 +71,19 @@ func Deps() dashboard.Deps {
 		Mutate: func(_ context.Context, fn func(lf *lockfile.Lockfile) error) error {
 			s.mu.Lock()
 			defer s.mu.Unlock()
-			return fn(&s.locked)
+			// Clone-on-write: Locked/Inventory hand out s.locked by value, but
+			// that's a shallow copy — its Artifacts slice (and each Entry's
+			// pointer/slice fields) still aliases the shared backing array. A
+			// concurrent Locked() read racing this in-place edit is a data
+			// race. Mutate on a deep copy instead and swap it in atomically,
+			// mirroring real-mode semantics where every read deserializes a
+			// fresh struct.
+			cp := cloneLockfile(s.locked)
+			if err := fn(&cp); err != nil {
+				return err
+			}
+			s.locked = cp
+			return nil
 		},
 		MutatePolicy: func(_ context.Context, fn func(p *policy.Policy) error) error {
 			s.mu.Lock()
@@ -96,6 +113,57 @@ func Deps() dashboard.Deps {
 			return s.blobs[contentHash], nil
 		},
 	}
+}
+
+// cloneLockfile deep-copies a Lockfile so mutating the result can never alias
+// the source: the Artifacts slice gets a new backing array, and every field
+// on each Entry that's a pointer, slice, or map — the parts a shallow `:=`
+// copy would still share — gets its own backing storage too.
+func cloneLockfile(lf lockfile.Lockfile) lockfile.Lockfile {
+	cp := lf
+	cp.Artifacts = make([]lockfile.Entry, len(lf.Artifacts))
+	for i, e := range lf.Artifacts {
+		cp.Artifacts[i] = cloneEntry(e)
+	}
+	return cp
+}
+
+func cloneEntry(e lockfile.Entry) lockfile.Entry {
+	e.Artifact = cloneArtifact(e.Artifact)
+	if e.Approval != nil {
+		approval := *e.Approval
+		e.Approval = &approval
+	}
+	if e.SafeFindings != nil {
+		e.SafeFindings = append([]lockfile.FindingAck(nil), e.SafeFindings...)
+	}
+	return e
+}
+
+func cloneArtifact(a artifact.Artifact) artifact.Artifact {
+	if a.Source.Args != nil {
+		a.Source.Args = append([]string(nil), a.Source.Args...)
+	}
+	if a.Source.Env != nil {
+		env := make(map[string]string, len(a.Source.Env))
+		for k, v := range a.Source.Env {
+			env[k] = v
+		}
+		a.Source.Env = env
+	}
+	if a.Capabilities.Network != nil {
+		a.Capabilities.Network = append([]string(nil), a.Capabilities.Network...)
+	}
+	if a.Capabilities.Filesystem != nil {
+		a.Capabilities.Filesystem = append([]string(nil), a.Capabilities.Filesystem...)
+	}
+	if a.Files != nil {
+		a.Files = append([]artifact.FileRef(nil), a.Files...)
+	}
+	if a.Findings != nil {
+		a.Findings = append([]finding.Finding(nil), a.Findings...)
+	}
+	return a
 }
 
 // day is a shorthand for a 24-hour duration, so the dataset's relative offsets
@@ -376,7 +444,7 @@ func build(now time.Time) *state {
 		Scope:       "project:acme-api",
 		Type:        artifact.TypeRules,
 		Name:        "acme-context",
-		Source:      artifact.Source{Kind: artifact.SourceLocal, Ref: "CLAUDE.md"},
+		Source:      artifact.Source{Kind: artifact.SourceLocal, Ref: "acme-demo/context/RULES.md"},
 		Files:       []artifact.FileRef{{Path: "CLAUDE.md", Hash: "iiii01"}},
 		ContentHash: "sha256-demo-acme-context-v1",
 		ModifiedAt:  now.Add(-80 * day),
@@ -433,9 +501,10 @@ func build(now time.Time) *state {
 		})
 	}
 
-	// Fleet: 5 owners, all carrying github-tools (monoculture), 3 carrying
-	// acme-deploy-helper with bob's hash differing (drifted), dana carrying a
-	// blocked-publisher artifact.
+	// Fleet: 5 owners, all carrying github-tools (monoculture); 3 of them
+	// (alice, bob, carol) carry acme-deploy-helper, each with its own drifted
+	// hash — consistent with the "drifted on 3 of 5 machines" alert below —
+	// and dana carrying a blocked-publisher artifact.
 	mkGH := func() fleet.Artifact {
 		return fleet.Artifact{ID: ghID, Name: "github-tools", Kind: string(artifact.TypeMCPServer), Hash: "sha256-demo-github-tools-v1", Source: "@acme/github-tools@2.4.1", Drift: "verified", Verdict: "trusted"}
 	}
@@ -443,9 +512,9 @@ func build(now time.Time) *state {
 		return fleet.Artifact{ID: deployID, Name: "acme-deploy-helper", Kind: string(artifact.TypeSkill), Hash: hash, Source: "skills/acme-deploy-helper", Drift: drift, Verdict: verdict}
 	}
 	s.snaps = []fleet.Snapshot{
-		{Owner: "alice", GeneratedAt: now, Artifacts: []fleet.Artifact{mkGH(), mkDeploy("sha256-demo-deploy-v1", "verified", "trusted")}},
+		{Owner: "alice", GeneratedAt: now, Artifacts: []fleet.Artifact{mkGH(), mkDeploy("sha256-demo-deploy-v2b", "drifted", "quarantine")}},
 		{Owner: "bob", GeneratedAt: now, Artifacts: []fleet.Artifact{mkGH(), mkDeploy("sha256-demo-deploy-v2", "drifted", "quarantine")}},
-		{Owner: "carol", GeneratedAt: now, Artifacts: []fleet.Artifact{mkGH(), mkDeploy("sha256-demo-deploy-v1", "verified", "trusted")}},
+		{Owner: "carol", GeneratedAt: now, Artifacts: []fleet.Artifact{mkGH(), mkDeploy("sha256-demo-deploy-v2c", "drifted", "quarantine")}},
 		{Owner: "dana", GeneratedAt: now, Artifacts: []fleet.Artifact{
 			mkGH(),
 			{ID: "demo-tracker", Name: "tracker", Kind: string(artifact.TypeMCPServer), Hash: "sha256-demo-tracker-v1", Source: "giftshop.club/tracker", Drift: "new", Verdict: "review"},

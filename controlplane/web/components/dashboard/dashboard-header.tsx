@@ -37,7 +37,7 @@ export function DashboardHeader({ demo }: { demo?: boolean }) {
           {isDemo && (
             <span className="inline-flex items-center gap-1.5 rounded-md border border-sev-high/30 bg-sev-high/10 px-2 py-0.5 font-mono text-[11px] font-medium uppercase tracking-wide text-sev-high">
               <span className="h-1.5 w-1.5 rounded-full bg-sev-high" aria-hidden />
-              demo data
+              demo mode
             </span>
           )}
           <a
