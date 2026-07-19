@@ -277,6 +277,20 @@ func build(now time.Time) *state {
 		Tool:   "delete_repo",
 		Status: audit.StatusDenied,
 	})
+	// The advertised tool surface changed between two sessions — the
+	// tool-poisoning rug-pull signal the drawer highlights.
+	s.events = append(s.events,
+		audit.Event{
+			At: now.Add(-10 * day), Session: "demo-gh-1", Server: "github-tools",
+			Kind: audit.KindToolSurface, ArgsDigest: "sha256-demo-surface-v1",
+			Detail: "tools=3", ToolNames: []string{"create_issue", "list_prs", "read_repo"},
+		},
+		audit.Event{
+			At: now.Add(-1 * day), Session: "demo-gh-2", Server: "github-tools",
+			Kind: audit.KindToolSurface, ArgsDigest: "sha256-demo-surface-v2",
+			Detail: "tools=4", ToolNames: []string{"create_issue", "list_prs", "read_repo", "upload_artifact"},
+		},
+	)
 	s.events = append(s.events, audit.Event{
 		At:     now.Add(-2 * day),
 		Server: "github-tools",

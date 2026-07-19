@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { X, FileCode2, ShieldCheck, ShieldAlert, Network, FolderTree, Terminal, EyeOff, GitCompareArrows, Clock, AlarmClock, History } from "lucide-react"
+import { X, FileCode2, ShieldCheck, ShieldAlert, Network, FolderTree, Terminal, EyeOff, GitCompareArrows, Clock, AlarmClock, History, Wrench } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { KIND_LABELS, PATTERN_LABELS, type Artifact, type LineDiff } from "@/lib/scan-data"
 import { SeverityBadge, DriftBadge, VerdictBadge, LivenessBadge, ReachBadge, ReputationBadge, SafeBadge } from "@/components/dashboard/badges"
@@ -154,6 +154,7 @@ function DrawerBody({
         <Integrity a={a} />
         <Timeline a={a} />
         <Usage a={a} />
+        <ToolSurfacePanel a={a} />
         <ChangedFiles a={a} />
         <Capabilities a={a} />
         <Findings a={a} live={live} onChanged={onChanged} onViewSource={onViewSource} />
@@ -483,6 +484,37 @@ function Usage({ a }: { a: Artifact }) {
           capture when it runs.
         </p>
       )}
+    </Section>
+  )
+}
+
+// ToolSurfacePanel renders the runtime-observed advertised tool surface: the
+// tools the server promised via tools/list, digested by the shim. A change
+// between sessions is highlighted — that is the tool-poisoning rug pull.
+function ToolSurfacePanel({ a }: { a: Artifact }) {
+  const t = a.toolSurface
+  if (!t) return null
+  return (
+    <Section icon={Wrench} title="Advertised tools">
+      {t.changedAt && (
+        <div className="mb-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-xs text-amber-600 dark:text-amber-400">
+          Advertised tool surface changed {t.changedAt}
+          {t.prevTools != null ? ` (${t.prevTools} → ${t.tools} tools)` : ""} — review before trusting
+          this server&apos;s tool descriptions.
+        </div>
+      )}
+      <div className="mb-2 flex items-baseline gap-2">
+        <span className="font-mono text-lg tabular-nums text-foreground">{t.tools}</span>
+        <span className="text-xs text-muted-foreground">
+          advertised tool{t.tools === 1 ? "" : "s"}
+          {t.seenAt ? ` · seen ${t.seenAt}` : ""}
+        </span>
+      </div>
+      {t.names && t.names.length > 0 && (
+        <p className="mb-2 font-mono text-xs text-muted-foreground">{t.names.join(" · ")}</p>
+      )}
+      <Row label="Surface digest" value={t.digest} mono />
+      {t.prevDigest && <Row label="Previous digest" value={t.prevDigest} mono />}
     </Section>
   )
 }

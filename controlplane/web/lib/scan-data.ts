@@ -186,6 +186,9 @@ export interface Artifact {
   // means "no usage signal" (no telemetry path for this kind yet).
   usage?: Usage
 
+  // Runtime-observed advertised tool surface (wrapped MCP servers only).
+  toolSurface?: ToolSurface
+
   // Dormant-then-active finding (F2): an old install that lay unused, drifted,
   // then fired for the first time. Present only when the sleeper rule trips.
   sleeper?: Sleeper
@@ -204,6 +207,19 @@ export interface Reputation {
   trusters: number
   firstSeen?: string
   grade: "unknown" | "emerging" | "established"
+}
+
+// ToolSurface is the runtime-observed advertised MCP tool surface: what
+// tools/list promised, as a canonical digest. A change between sessions is
+// the tool-poisoning rug-pull signal.
+export interface ToolSurface {
+  digest: string
+  tools: number
+  names?: string[]
+  seenAt?: string
+  changedAt?: string // present only when the surface changed between sessions
+  prevDigest?: string
+  prevTools?: number
 }
 
 // Usage is the per-artifact runtime invocation summary (F1).
@@ -554,6 +570,15 @@ export const artifacts: Artifact[] = [
     lockedHash: "sha256:7c3e…aa12",
     drift: "verified",
     usage: { firstUsed: "2026-05-15 09:12", lastUsed: "2026-06-15 08:01", lastUsedRel: "2h ago", count: 412 },
+    toolSurface: {
+      digest: "sha256-demo-surface-v2",
+      tools: 4,
+      names: ["list_tables", "read_schema", "run_query", "export_rows"],
+      seenAt: "2026-06-15 08:01",
+      changedAt: "2026-06-15 08:01",
+      prevDigest: "sha256-demo-surface-v1",
+      prevTools: 3,
+    },
     reputation: { trusters: 128, firstSeen: "2026-03-02", grade: "established" },
     timeline: [
       { at: "2026-05-15 09:00", kind: "installed", label: "Installed", severity: "info" },
