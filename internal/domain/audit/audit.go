@@ -27,6 +27,15 @@ const (
 	// Tool the artifact kind. It never carries arguments — only that the
 	// artifact ran, and when.
 	KindActivation Kind = "activation"
+	// KindToolSurface records the advertised tool surface observed from one
+	// completed tools/list: the canonical digest of names+descriptions+schemas
+	// (in ArgsDigest), the tool names, and "tools=N" in Detail. Descriptions
+	// and schemas reach the trail only as the digest — same redaction bar as
+	// tool-call arguments.
+	KindToolSurface Kind = "tool_surface"
+	// KindToolListChanged records the server announcing a mid-session tool
+	// mutation via notifications/tools/list_changed.
+	KindToolListChanged Kind = "tool_list_changed"
 )
 
 // Statuses for KindToolCall events.
@@ -49,6 +58,10 @@ type Event struct {
 	Status     string    `json:"status,omitempty"`
 	ErrCode    int       `json:"errCode,omitempty"`
 	Detail     string    `json:"detail,omitempty"` // e.g. exit status, denial reason
+
+	// ToolNames lists the advertised tool names (KindToolSurface only) —
+	// names are identifiers, not content, so they may appear in the log.
+	ToolNames []string `json:"toolNames,omitempty"`
 
 	// Egress fields (KindEgress only).
 	Host       string `json:"host,omitempty"`
