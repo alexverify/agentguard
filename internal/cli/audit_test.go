@@ -92,3 +92,40 @@ func TestAuditEmptyLog(t *testing.T) {
 		t.Errorf("empty log should say so:\n%s", out.String())
 	}
 }
+
+func seedSurfaceAuditDir(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	lines := []string{
+		`{"ts":"2026-07-01T10:00:00Z","session":"s1","server":"gh","kind":"tool_surface","argsDigest":"sha256-aaa","detail":"tools=2","toolNames":["a","b"]}`,
+		`{"ts":"2026-07-02T10:00:00Z","session":"s2","server":"gh","kind":"tool_surface","argsDigest":"sha256-bbb","detail":"tools=3","toolNames":["a","b","c"]}`,
+	}
+	if err := os.WriteFile(filepath.Join(dir, "2026-07-02.jsonl"), []byte(strings.Join(lines, "\n")+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+func TestAuditSummaryReportsToolSurfaceChange(t *testing.T) {
+	dir := seedSurfaceAuditDir(t)
+	app, out, errBuf := newApp()
+	if code := app.Execute(context.Background(), []string{"audit", "--audit-dir", dir}); code != cli.ExitOK {
+		t.Fatalf("audit exit = %d, stderr=%s", code, errBuf.String())
+	}
+	want := "tool surface changed: gh  2 → 3 tools (sha256-aaa → sha256-bbb)"
+	if !strings.Contains(out.String(), want) {
+		t.Errorf("summary missing %q:\n%s", want, out.String())
+	}
+}
+
+func TestAuditListRendersToolSurfaceKind(t *testing.T) {
+	dir := seedSurfaceAuditDir(t)
+	app, out, _ := newApp()
+	if code := app.Execute(context.Background(), []string{"audit", "--audit-dir", dir, "--list", "--kind", "tool_surface"}); code != cli.ExitOK {
+		t.Fatalf("exit = %d", code)
+	}
+	s := out.String()
+	if strings.Count(s, "gh") != 2 || !strings.Contains(s, "tools=2") || !strings.Contains(s, "tools=3") {
+		t.Errorf("list output missing surface lines:\n%s", s)
+	}
+}

@@ -10,6 +10,7 @@ import (
 	"github.com/alexverify/eyebrow/internal/adapters/auditlog"
 	"github.com/alexverify/eyebrow/internal/client"
 	"github.com/alexverify/eyebrow/internal/domain/audit"
+	"github.com/alexverify/eyebrow/internal/domain/toolsurface"
 )
 
 // runAudit queries the shim's audit log: a summary by default, or a filtered
@@ -23,7 +24,7 @@ func (a *App) runAudit(ctx context.Context, args []string) int {
 	server := fs.String("server", "", "only events for this server")
 	tool := fs.String("tool", "", "only events for this tool")
 	status := fs.String("status", "", "only events with this status (ok|denied|error|unanswered)")
-	kind := fs.String("kind", "", "only events of this kind (tool_call|activation|egress|session_start|server_exit)")
+	kind := fs.String("kind", "", "only events of this kind (tool_call|activation|egress|tool_surface|tool_list_changed|session_start|server_exit)")
 	since := fs.String("since", "", "only events on/after this date (YYYY-MM-DD)")
 	list := fs.Bool("list", false, "list matching events instead of a summary")
 	jsonOut := fs.Bool("json", false, "machine-readable JSON output")
@@ -112,6 +113,8 @@ func (a *App) auditList(events []audit.Event, jsonOut bool) int {
 			line += fmt.Sprintf(" %-16s %s", e.Tool, e.Status)
 		case audit.KindActivation:
 			line += fmt.Sprintf(" %s", e.Tool) // the artifact kind
+		case audit.KindToolSurface:
+			line += fmt.Sprintf(" %s %s", e.Detail, e.ArgsDigest)
 		case audit.KindEgress:
 			line += fmt.Sprintf(" %s %s %s", e.Method, e.Host, e.Status)
 			if e.Redactions > 0 {
@@ -143,6 +146,10 @@ func (a *App) auditSummary(events []audit.Event, jsonOut bool, dir string) int {
 		fmt.Fprintf(a.Stdout, "  activations: %d\n", s.Activations)
 	}
 	fmt.Fprintf(a.Stdout, "  egress:      %d (%d denied, %d redactions)\n", s.Egress, denials(events, audit.KindEgress), s.Redactions)
+	for _, c := range toolsurface.Changes(events) {
+		fmt.Fprintf(a.Stdout, "tool surface changed: %s  %d → %d tools (%s → %s)\n",
+			c.Server, c.FromCount, c.ToCount, c.FromDigest, c.ToDigest)
+	}
 	fmt.Fprintln(a.Stdout, "by server:")
 	for _, kv := range sortedCounts(s.ByServer) {
 		fmt.Fprintf(a.Stdout, "  %-16s %d\n", kv.k, kv.v)
