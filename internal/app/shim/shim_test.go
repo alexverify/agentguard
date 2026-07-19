@@ -235,3 +235,92 @@ func TestRelayHandlesOversizedLines(t *testing.T) {
 	}
 	t.Error("oversized call not audited")
 }
+
+func TestToolListEmitsSurfaceEvent(t *testing.T) {
+	listLine := `{"jsonrpc":"2.0","id":1,"method":"tools/list"}` + "\n"
+	listResp := `{"jsonrpc":"2.0","id":1,"result":{"tools":[{"name":"read_file","description":"Read a file","inputSchema":{"type":"object"}},{"name":"write_file","description":"Write","inputSchema":{"type":"object"}}]}}` + "\n"
+
+	sink := &apptest.AuditSink{}
+	_, clientGot := runRelay(t, []string{listLine}, map[string][]string{listLine: {listResp}}, sink)
+
+	if clientGot != listResp {
+		t.Errorf("client received altered bytes:\n%q", clientGot)
+	}
+	var surfaces, calls []audit.Event
+	for _, e := range sink.Events() {
+		switch e.Kind {
+		case audit.KindToolSurface:
+			surfaces = append(surfaces, e)
+		case audit.KindToolCall:
+			calls = append(calls, e)
+		}
+	}
+	if len(surfaces) != 1 {
+		t.Fatalf("got %d tool_surface events, want 1: %+v", len(surfaces), sink.Events())
+	}
+	s := surfaces[0]
+	if s.Server != "github" || !strings.HasPrefix(s.ArgsDigest, "sha256-") || s.Detail != "tools=2" {
+		t.Errorf("event = %+v", s)
+	}
+	if len(s.ToolNames) != 2 || s.ToolNames[0] != "read_file" || s.ToolNames[1] != "write_file" {
+		t.Errorf("ToolNames = %v", s.ToolNames)
+	}
+	if len(calls) != 0 {
+		t.Errorf("tools/list completion must not audit a tool_call: %+v", calls)
+	}
+}
+
+func TestToolListChangedNotificationAudited(t *testing.T) {
+	callAfter := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"ping","arguments":{}}}` + "\n"
+	note := `{"jsonrpc":"2.0","method":"notifications/tools/list_changed"}` + "\n"
+	resp := `{"jsonrpc":"2.0","id":1,"result":{}}` + "\n"
+
+	sink := &apptest.AuditSink{}
+	_, clientGot := runRelay(t, []string{callAfter}, map[string][]string{callAfter: {note, resp}}, sink)
+
+	if clientGot != note+resp {
+		t.Errorf("client received altered bytes:\n%q", clientGot)
+	}
+	changed := 0
+	for _, e := range sink.Events() {
+		if e.Kind == audit.KindToolListChanged {
+			changed++
+			if e.Server != "github" {
+				t.Errorf("event = %+v", e)
+			}
+		}
+	}
+	if changed != 1 {
+		t.Fatalf("got %d tool_list_changed events, want 1: %+v", changed, sink.Events())
+	}
+}
+
+func TestMalformedToolListResultIgnored(t *testing.T) {
+	listLine := `{"jsonrpc":"2.0","id":1,"method":"tools/list"}` + "\n"
+	badResp := `{"jsonrpc":"2.0","id":1,"result":{"unexpected":true}}` + "\n"
+
+	sink := &apptest.AuditSink{}
+	_, clientGot := runRelay(t, []string{listLine}, map[string][]string{listLine: {badResp}}, sink)
+
+	if clientGot != badResp {
+		t.Errorf("client received altered bytes:\n%q", clientGot)
+	}
+	for _, e := range sink.Events() {
+		if e.Kind == audit.KindToolSurface {
+			t.Fatalf("malformed result must not emit a surface event: %+v", e)
+		}
+	}
+}
+
+func TestPendingToolListNotAuditedAsUnansweredCall(t *testing.T) {
+	listLine := `{"jsonrpc":"2.0","id":9,"method":"tools/list"}` + "\n"
+
+	sink := &apptest.AuditSink{}
+	runRelay(t, []string{listLine}, map[string][]string{}, sink) // server never answers
+
+	for _, e := range sink.Events() {
+		if e.Kind == audit.KindToolCall && e.Status == audit.StatusUnanswered {
+			t.Fatalf("pending tools/list audited as unanswered tool_call: %+v", e)
+		}
+	}
+}
