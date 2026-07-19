@@ -126,9 +126,9 @@ func TestTrackerErrorResponse(t *testing.T) {
 func TestTrackerIgnoresNonToolTraffic(t *testing.T) {
 	tr := NewTracker()
 	t0 := time.Unix(0, 0)
-	tr.Observe(Parse([]byte(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`)), t0)
+	tr.Observe(Parse([]byte(`{"jsonrpc":"2.0","id":1,"method":"resources/list"}`)), t0)
 	if done := tr.Observe(Parse([]byte(`{"jsonrpc":"2.0","id":1,"result":{}}`)), t0); done != nil {
-		t.Fatal("non-tools/call requests must not be tracked")
+		t.Fatal("untracked methods must not complete")
 	}
 	if done := tr.Observe(Parse([]byte(`{"jsonrpc":"2.0","id":99,"result":{}}`)), t0); done != nil {
 		t.Fatal("a response with no pending request must be ignored")
@@ -147,5 +147,46 @@ func TestTrackerDrain(t *testing.T) {
 	}
 	if tr.Len() != 0 {
 		t.Error("Drain must empty the tracker")
+	}
+}
+
+func TestParseRetainsResultJSON(t *testing.T) {
+	m := Parse([]byte(`{"jsonrpc":"2.0","id":7,"result":{"tools":[{"name":"a"}]}}`))
+	if m.Kind != KindResponse {
+		t.Fatalf("Kind = %v, want response", m.Kind)
+	}
+	if string(m.ResultJSON) != `{"tools":[{"name":"a"}]}` {
+		t.Fatalf("ResultJSON = %s", m.ResultJSON)
+	}
+}
+
+func TestTrackerCompletesToolListByMethod(t *testing.T) {
+	tr := NewTracker()
+	at := time.Now()
+	tr.Observe(Parse([]byte(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`)), at)
+	done := tr.Observe(Parse([]byte(`{"jsonrpc":"2.0","id":1,"result":{"tools":[]}}`)), at.Add(time.Millisecond))
+	if done == nil || done.Method != MethodToolList {
+		t.Fatalf("Completed = %+v, want method tools/list", done)
+	}
+	if string(done.ResultJSON) != `{"tools":[]}` {
+		t.Fatalf("ResultJSON = %s", done.ResultJSON)
+	}
+}
+
+func TestTrackerToolCallCarriesMethod(t *testing.T) {
+	tr := NewTracker()
+	at := time.Now()
+	tr.Observe(Parse([]byte(`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"run","arguments":{}}}`)), at)
+	done := tr.Observe(Parse([]byte(`{"jsonrpc":"2.0","id":2,"result":{}}`)), at)
+	if done == nil || done.Method != MethodToolCall || done.Tool != "run" {
+		t.Fatalf("Completed = %+v, want tools/call for run", done)
+	}
+}
+
+func TestTrackerIgnoresOtherMethods(t *testing.T) {
+	tr := NewTracker()
+	tr.Observe(Parse([]byte(`{"jsonrpc":"2.0","id":3,"method":"resources/list"}`)), time.Now())
+	if tr.Len() != 0 {
+		t.Fatalf("Len() = %d, want 0 — only tools/call and tools/list pend", tr.Len())
 	}
 }
