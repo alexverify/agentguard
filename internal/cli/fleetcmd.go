@@ -221,7 +221,7 @@ func (a *App) fleetShow(dir, policyPath string) int {
 // fleet record, reusing BuildScan so drift and verdict match the dashboard
 // exactly. Usage telemetry is not needed for the snapshot, so it is omitted.
 func snapshotArtifacts(current, locked lockfile.Lockfile) []fleet.Artifact {
-	scan := dashboard.BuildScan(current, locked, posture.ApprovedSet(locked), nil, nil)
+	scan := dashboard.BuildScan(current, locked, posture.ApprovedSet(locked), nil, nil, nil)
 	out := make([]fleet.Artifact, 0, len(scan))
 	for _, d := range scan {
 		out = append(out, fleet.Artifact{

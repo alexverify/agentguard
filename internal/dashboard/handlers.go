@@ -58,7 +58,7 @@ func (s *Server) handleScan(w http.ResponseWriter, r *http.Request) {
 		httpError(w, err)
 		return
 	}
-	arts := BuildScan(current, locked, s.approvedSet(locked), s.usageSummary(), s.reputationSource(inventoryHashes(current)))
+	arts := BuildScan(current, locked, s.approvedSet(locked), s.usageSummary(), s.toolSurfaces(), s.reputationSource(inventoryHashes(current)))
 	AttachLineDiffs(arts, s.deps.Blobs)
 	writeJSON(w, struct {
 		Artifacts []DashArtifact `json:"artifacts"`

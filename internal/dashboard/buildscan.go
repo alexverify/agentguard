@@ -7,6 +7,7 @@ package dashboard
 // the caller — so the join logic reads and tests on its own.
 
 import (
+	"fmt"
 	"sort"
 	"strconv"
 	"time"
@@ -20,6 +21,7 @@ import (
 	"github.com/alexverify/eyebrow/internal/domain/risk"
 	"github.com/alexverify/eyebrow/internal/domain/textdiff"
 	"github.com/alexverify/eyebrow/internal/domain/timeline"
+	"github.com/alexverify/eyebrow/internal/domain/toolsurface"
 	"github.com/alexverify/eyebrow/internal/domain/trust"
 	"github.com/alexverify/eyebrow/internal/domain/usage"
 )
@@ -42,7 +44,7 @@ func approvedSet(locked lockfile.Lockfile) map[string]bool {
 // locked snapshot, and the set of approved-and-signed artifact IDs. It is
 // pure: all IO (building inventory, reading the lockfile, verifying
 // signatures) happens in the caller.
-func BuildScan(current, locked lockfile.Lockfile, approved map[string]bool, used map[string]usage.Stat, rep reputation.Source) []DashArtifact {
+func BuildScan(current, locked lockfile.Lockfile, approved map[string]bool, used map[string]usage.Stat, surfaces map[string]toolsurface.Status, rep reputation.Source) []DashArtifact {
 	classes := lockfile.Classify(locked, current)
 	lockedByID := map[string]lockfile.Entry{}
 	for _, e := range locked.Artifacts {
@@ -58,7 +60,8 @@ func BuildScan(current, locked lockfile.Lockfile, approved map[string]bool, used
 		capDiff := lockfile.DiffCapabilities(prev.Capabilities, e.Capabilities)
 		secretFS := trust.SensitivePaths(e.Capabilities.Filesystem)
 		dashUsage, sleeper := usageOf(e, class, used, current.GeneratedAt)
-		ribbon := timelineOf(e, prev, class, used, current.GeneratedAt)
+		dsurf := surfaceOf(e, surfaces)
+		ribbon := timelineOf(e, prev, class, used, dsurf, current.GeneratedAt)
 		live := livenessOf(e, used, current.GeneratedAt)
 
 		score := trust.Evaluate(trust.Input{
@@ -125,6 +128,7 @@ func BuildScan(current, locked lockfile.Lockfile, approved map[string]bool, used
 			Usage:        dashUsage,
 			Sleeper:      sleeper,
 			Timeline:     ribbon,
+			ToolSurface:  dsurf,
 			Reputation:   reputationOf(e.ContentHash, rep),
 		})
 	}
@@ -247,7 +251,7 @@ func usageOf(e lockfile.Entry, class lockfile.DriftClass, used map[string]usage.
 // in. Usage events join by artifact name (tool calls for MCP servers,
 // activations for skills/subagents — F1b); an artifact with no events simply
 // contributes no use milestones.
-func timelineOf(e, prev lockfile.Entry, class lockfile.DriftClass, used map[string]usage.Stat, scanAt time.Time) []timeline.Event {
+func timelineOf(e, prev lockfile.Entry, class lockfile.DriftClass, used map[string]usage.Stat, dsurf *DashToolSurface, scanAt time.Time) []timeline.Event {
 	in := timeline.Input{
 		InstalledAt: e.ModifiedAt,
 		DriftDetail: driftDetail(class, prev, e),
@@ -268,6 +272,12 @@ func timelineOf(e, prev lockfile.Entry, class lockfile.DriftClass, used map[stri
 		in.FirstUsed = st.FirstUsed
 		in.LastUsed = st.LastUsed
 		in.UseCount = st.Count
+	}
+	if dsurf != nil && dsurf.ChangedAt != "" {
+		if at, err := time.Parse("2006-01-02 15:04", dsurf.ChangedAt); err == nil {
+			in.SurfaceChangedAt = at
+			in.SurfaceDetail = fmt.Sprintf("%d → %d tools", dsurf.PrevTools, dsurf.Tools)
+		}
 	}
 	return timeline.Build(in)
 }
@@ -295,6 +305,29 @@ func reputationOf(contentHash string, rep reputation.Source) *DashReputation {
 func livenessOf(e lockfile.Entry, used map[string]usage.Stat, now time.Time) risk.Liveness {
 	stat, found := statFor(used, e)
 	return risk.Classify(stat, found, now)
+}
+
+// surfaceOf joins the runtime-observed tool surface to an artifact. Surface
+// events are keyed by the wrapped MCP server's name, so only MCP servers
+// join — a skill sharing the name never inherits a server's surface.
+func surfaceOf(e lockfile.Entry, surfaces map[string]toolsurface.Status) *DashToolSurface {
+	if e.Type != artifact.TypeMCPServer {
+		return nil
+	}
+	st, ok := surfaces[e.Name]
+	if !ok {
+		return nil
+	}
+	d := &DashToolSurface{Digest: st.Digest, Tools: st.Count, Names: st.Names}
+	if !st.SeenAt.IsZero() {
+		d.SeenAt = st.SeenAt.UTC().Format("2006-01-02 15:04")
+	}
+	if c := st.Change; c != nil {
+		d.ChangedAt = c.To.UTC().Format("2006-01-02 15:04")
+		d.PrevDigest = c.FromDigest
+		d.PrevTools = c.FromCount
+	}
+	return d
 }
 
 // statFor joins an artifact to its usage stat in the kind-aware namespace: MCP

@@ -85,6 +85,10 @@ type DashArtifact struct {
 	// invoked → drifted, ordered in time. Empty when no dated milestone is known.
 	Timeline []timeline.Event `json:"timeline,omitempty"`
 
+	// ToolSurface is the runtime-observed advertised tool surface (MCP servers
+	// wrapped by the shim only). Absent = never observed.
+	ToolSurface *DashToolSurface `json:"toolSurface,omitempty"`
+
 	// Reputation is the opt-in community trust signal for this exact content
 	// hash (H3): how many other users trust it and when it was first seen. nil
 	// when the corpus is absent or has no entry (unknown, never a negative claim).
@@ -106,6 +110,20 @@ type DashReputation struct {
 	Trusters  int    `json:"trusters"`
 	FirstSeen string `json:"firstSeen,omitempty"`
 	Grade     string `json:"grade"` // unknown | emerging | established
+}
+
+// DashToolSurface is the advertised MCP tool surface observed at runtime by
+// the shim: what tools/list promised, as a canonical digest. A change between
+// sessions is the tool-poisoning rug-pull signal — for remote servers the only
+// possible content signal.
+type DashToolSurface struct {
+	Digest     string   `json:"digest"`
+	Tools      int      `json:"tools"`
+	Names      []string `json:"names,omitempty"`
+	SeenAt     string   `json:"seenAt,omitempty"`
+	ChangedAt  string   `json:"changedAt,omitempty"`
+	PrevDigest string   `json:"prevDigest,omitempty"`
+	PrevTools  int      `json:"prevTools,omitempty"`
 }
 
 // DashUsage is the per-artifact runtime invocation summary (F1).
