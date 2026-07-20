@@ -71,3 +71,36 @@ func TestDeriveEmpty(t *testing.T) {
 		t.Errorf("a clean fleet with no audit should yield no alerts, got %+v", got)
 	}
 }
+
+func TestDeriveSleeperIsCriticalAndLeads(t *testing.T) {
+	rep := report(
+		fleet.Exposure{Name: "feed", Kind: "skill", Installs: 8, Drifted: 2, Sleeper: 2},
+		fleet.Exposure{Name: "linter", Kind: "skill", Installs: 2, Quarantine: 1},
+	)
+	got := Derive(rep, nil)
+	// Expect: sleeper (critical) + drift (high) for "feed", quarantine (critical) for "linter".
+	if got[0].Kind != KindSleeper {
+		t.Fatalf("sleeper should be the top alert, got %+v", got[0])
+	}
+	if got[0].Severity != SeverityCritical || got[0].Subject != "feed" || got[0].Count != 2 {
+		t.Errorf("sleeper alert wrong: %+v", got[0])
+	}
+	var sawSleeper int
+	for _, al := range got {
+		if al.Kind == KindSleeper {
+			sawSleeper++
+		}
+	}
+	if sawSleeper != 1 {
+		t.Errorf("expected exactly one sleeper alert, got %d in %+v", sawSleeper, got)
+	}
+}
+
+func TestDeriveNoSleeperAtZero(t *testing.T) {
+	got := Derive(report(fleet.Exposure{Name: "feed", Installs: 3, Drifted: 1, Sleeper: 0}), nil)
+	for _, al := range got {
+		if al.Kind == KindSleeper {
+			t.Errorf("no sleeper alert expected when Sleeper==0: %+v", al)
+		}
+	}
+}
