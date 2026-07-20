@@ -26,10 +26,16 @@ so when **you opt in** by pointing the CLI at a control plane (`--server` /
 
 | You run | What is sent | Shape |
 |---|---|---|
-| `eyebrow fleet push` | a **content-free snapshot**: per-artifact id, name, kind, content hash, source ref, and your local drift/verdict | no code, no secrets, no file bytes — exactly what `fleet export` writes to a committed file |
+| `eyebrow fleet push` | a **content-free snapshot**: per-artifact id, name, kind, content hash, source ref, your local drift/verdict, and a **sleeper** boolean | no code, no secrets, no file bytes — exactly what `fleet export` writes to a committed file |
 | `eyebrow audit push` | your **audit events**: tool and server names, egress **hostnames**, HTTP methods, byte counts, redaction counts, statuses, timestamps, and argument **digests** | no raw arguments, no secrets, no response bodies |
 | `eyebrow verify --server`, `eyebrow fleet verify --server` | nothing is uploaded — these **pull** org policy and trusted keys (reads) | — |
 | `eyebrow reputation`, dashboard `--reputation-server` | the **content hashes** you want to look up | a SHA-256 hash reveals nothing about content you do not already hold; the server replies only with matches |
+
+One note about the snapshot's **sleeper** field: it is a single boolean derived
+on your device — whether an artifact drifted after lying dormant and then ran for
+the first time (the F2 triple). Like the drift and trust verdicts, it is a
+computed classification, never the underlying install/usage timing, file bytes,
+or arguments. The raw timing it is derived from never leaves the machine.
 
 Two honesty notes about `audit push`:
 

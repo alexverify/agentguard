@@ -536,8 +536,9 @@ func build(now time.Time) *state {
 		{Owner: "eli", GeneratedAt: now, Artifacts: []fleet.Artifact{mkGH()}},
 	}
 
-	// Alerts: 3 hand-written, most-urgent first.
+	// Alerts: hand-written, most-urgent first.
 	s.alerts = []alert.Alert{
+		{Kind: alert.KindSleeper, Severity: alert.SeverityCritical, Subject: "acme-deploy-helper", Detail: "woke as a sleeper (dormant → drifted → first run) on 2 of 5 machine(s) — quarantine and review", Count: 2},
 		{Kind: alert.KindDrift, Severity: alert.SeverityHigh, Subject: "acme-deploy-helper", Detail: "drifted on 3 of 5 machines", Count: 3},
 		{Kind: alert.KindQuarantine, Severity: alert.SeverityInfo, Subject: "night-crawler", Detail: "quarantined but still installed"},
 		{Kind: alert.KindEgressDenied, Severity: alert.SeverityCritical, Subject: "exfil.example.net", Detail: "github-tools blocked reaching exfil.example.net 4 times", Count: 4},
