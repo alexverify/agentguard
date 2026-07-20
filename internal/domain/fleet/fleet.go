@@ -24,9 +24,10 @@ type Artifact struct {
 	Name    string `json:"name"`
 	Kind    string `json:"kind"`
 	Hash    string `json:"hash"`
-	Source  string `json:"source,omitempty"` // publisher/source ref (e.g. pkg@ver, url) — for policy conformance; not secret
-	Drift   string `json:"drift"`            // verified|updated|drifted|new|unsigned
-	Verdict string `json:"verdict"`          // trusted|review|quarantine
+	Source  string `json:"source,omitempty"`  // publisher/source ref (e.g. pkg@ver, url) — for policy conformance; not secret
+	Drift   string `json:"drift"`             // verified|updated|drifted|new|unsigned
+	Verdict string `json:"verdict"`           // trusted|review|quarantine
+	Sleeper bool   `json:"sleeper,omitempty"` // dormant→drifted→first-run, computed on-device (F2)
 }
 
 // Snapshot is one developer/machine's inventory at a moment. Owner is a
@@ -43,11 +44,12 @@ type Exposure struct {
 	ID         string   `json:"id"`
 	Name       string   `json:"name"`
 	Kind       string   `json:"kind"`
-	Owners     []string `json:"owners"`     // who has it, sorted and unique
-	Installs   int      `json:"installs"`   // == len(Owners)
-	Drifted    int      `json:"drifted"`    // owners on which it is drifted
-	Quarantine int      `json:"quarantine"` // owners on which the verdict is quarantine
-	Variants   int      `json:"variants"`   // distinct content hashes across the fleet; >1 breaks the monoculture (forks or a rug-pull mid-fleet)
+	Owners     []string `json:"owners"`            // who has it, sorted and unique
+	Installs   int      `json:"installs"`          // == len(Owners)
+	Drifted    int      `json:"drifted"`           // owners on which it is drifted
+	Quarantine int      `json:"quarantine"`        // owners on which the verdict is quarantine
+	Sleeper    int      `json:"sleeper,omitempty"` // owners on which the sleeper triple fired
+	Variants   int      `json:"variants"`          // distinct content hashes across the fleet; >1 breaks the monoculture (forks or a rug-pull mid-fleet)
 }
 
 // Report is the aggregated fleet picture, exposures sorted most-urgent first.
@@ -101,6 +103,7 @@ func Aggregate(snaps []Snapshot) Report {
 		owners     []string
 		drifted    int
 		quarantine int
+		sleeper    int
 		hashes     map[string]bool
 	}
 	byID := map[string]*acc{}
@@ -124,6 +127,9 @@ func Aggregate(snaps []Snapshot) Report {
 			if a.Verdict == "quarantine" {
 				e.quarantine++
 			}
+			if a.Sleeper {
+				e.sleeper++
+			}
 		}
 	}
 
@@ -139,14 +145,17 @@ func Aggregate(snaps []Snapshot) Report {
 			Installs:   len(e.owners),
 			Drifted:    e.drifted,
 			Quarantine: e.quarantine,
+			Sleeper:    e.sleeper,
 			Variants:   len(e.hashes),
 		})
 	}
 
-	// Most urgent first: risk (drift + quarantine) dominates, then reach
-	// (installs), then name for a stable order.
+	// Most urgent first: risk (sleeper + drift + quarantine) dominates, then
+	// reach (installs), then name for a stable order. A sleeper is also counted
+	// in drifted, so it ranks strictly ahead of an equal pure-drift exposure.
 	sort.SliceStable(exposures, func(i, j int) bool {
-		ri, rj := exposures[i].Drifted+exposures[i].Quarantine, exposures[j].Drifted+exposures[j].Quarantine
+		ri := exposures[i].Sleeper + exposures[i].Drifted + exposures[i].Quarantine
+		rj := exposures[j].Sleeper + exposures[j].Drifted + exposures[j].Quarantine
 		if ri != rj {
 			return ri > rj
 		}
