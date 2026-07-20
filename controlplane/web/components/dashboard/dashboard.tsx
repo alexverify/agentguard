@@ -184,7 +184,7 @@ export function Dashboard() {
         </div>
         <div className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 font-mono text-xs text-muted-foreground">
           <Terminal className="h-3.5 w-3.5 text-primary" />
-          <span className="text-foreground">npx eyebrow scan</span>
+          <span className="text-foreground">eyebrow scan</span>
         </div>
       </div>
 

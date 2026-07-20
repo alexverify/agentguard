@@ -10,7 +10,7 @@ type Line = {
 }
 
 const AUDIT_LINES: Line[] = [
-  { text: "$ npx eyebrow audit", tone: "muted" },
+  { text: "$ eyebrow audit", tone: "muted" },
   { text: "scanning 14 installed extensions across 4 agents...", tone: "muted" },
   { text: "" },
   { text: "ok   git-flow-helper@2.1.0          sha256:9f3a…c012", tone: "default" },

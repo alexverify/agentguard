@@ -25,7 +25,7 @@ export function Solution() {
             </p>
             <CodeBlock>
               <span className="text-muted-foreground">$ </span>
-              <span className="text-card-foreground">npx eyebrow audit</span>
+              <span className="text-card-foreground">eyebrow audit</span>
             </CodeBlock>
           </div>
 
