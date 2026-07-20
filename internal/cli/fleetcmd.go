@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/alexverify/eyebrow/internal/adapters/auditlog"
 	"github.com/alexverify/eyebrow/internal/adapters/fleetstore"
 	"github.com/alexverify/eyebrow/internal/adapters/lockstore"
 	"github.com/alexverify/eyebrow/internal/adapters/policystore"
@@ -16,6 +17,7 @@ import (
 	"github.com/alexverify/eyebrow/internal/domain/fleet"
 	"github.com/alexverify/eyebrow/internal/domain/lockfile"
 	"github.com/alexverify/eyebrow/internal/domain/posture"
+	"github.com/alexverify/eyebrow/internal/domain/usage"
 )
 
 // runFleet exports this machine's snapshot or prints the team blast-radius (G1).
@@ -140,8 +142,20 @@ func (a *App) buildSnapshot(ctx context.Context, c commonFlags, owner string) (f
 	return fleet.Snapshot{
 		Owner:       owner,
 		GeneratedAt: a.Clock.Now().UTC(),
-		Artifacts:   snapshotArtifacts(current, locked),
+		Artifacts:   snapshotArtifacts(current, locked, a.snapshotUsage()),
 	}, nil
+}
+
+// snapshotUsage folds the local audit log into per-artifact invocation stats so
+// the snapshot can carry the sleeper verdict (F2). Supplementary and offline-
+// honest: a missing or unreadable audit log yields nil — no usage, no sleeper,
+// never an error.
+func (a *App) snapshotUsage() map[string]usage.Stat {
+	events, err := auditlog.Read(a.auditDir(), auditlog.Filter{})
+	if err != nil {
+		return nil
+	}
+	return usage.Summarize(events)
 }
 
 // fleetExport writes this machine's snapshot to the shared directory ("git is
@@ -219,9 +233,10 @@ func (a *App) fleetShow(dir, policyPath string) int {
 
 // snapshotArtifacts maps the dashboard's assembled view onto the content-free
 // fleet record, reusing BuildScan so drift and verdict match the dashboard
-// exactly. Usage telemetry is not needed for the snapshot, so it is omitted.
-func snapshotArtifacts(current, locked lockfile.Lockfile) []fleet.Artifact {
-	scan := dashboard.BuildScan(current, locked, posture.ApprovedSet(locked), nil, nil, nil)
+// exactly. Local usage stats are passed through so the snapshot carries the
+// sleeper verdict (a derived boolean); the raw timing never leaves the machine.
+func snapshotArtifacts(current, locked lockfile.Lockfile, used map[string]usage.Stat) []fleet.Artifact {
+	scan := dashboard.BuildScan(current, locked, posture.ApprovedSet(locked), used, nil, nil)
 	out := make([]fleet.Artifact, 0, len(scan))
 	for _, d := range scan {
 		out = append(out, fleet.Artifact{
@@ -232,6 +247,7 @@ func snapshotArtifacts(current, locked lockfile.Lockfile) []fleet.Artifact {
 			Source:  d.Source,
 			Drift:   d.Drift,
 			Verdict: d.Verdict,
+			Sleeper: d.Sleeper != nil,
 		})
 	}
 	return out
