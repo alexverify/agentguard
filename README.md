@@ -6,6 +6,11 @@
 
 [![ci](https://github.com/alexverify/eyebrow/actions/workflows/ci.yml/badge.svg)](https://github.com/alexverify/eyebrow/actions/workflows/ci.yml)
 
+<p align="center">
+  <a href="https://eyebrow.cc"><img src="https://img.shields.io/badge/Website-eyebrow.cc-1a7f37?style=for-the-badge&logo=safari&logoColor=white" alt="Website — eyebrow.cc"></a>&nbsp;
+  <a href="https://x.com/eyebrowCC"><img src="https://img.shields.io/badge/Follow-%40eyebrowCC-000000?style=for-the-badge&logo=x&logoColor=white" alt="Follow @eyebrowCC on X"></a>
+</p>
+
 **Supply-chain integrity for AI coding tools.** A single static binary that
 discovers every skill, MCP server, plugin, hook, and rule installed across your
 AI coding tools, hashes them into a lockfile, statically scans them, and detects
