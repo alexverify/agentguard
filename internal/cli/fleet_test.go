@@ -72,3 +72,28 @@ func TestFleetVerifyEmptyDirPasses(t *testing.T) {
 		t.Errorf("no snapshots is nothing to gate; should pass (0), got %d", code)
 	}
 }
+
+// A woken sleeper now sorts first in the report, so it must also say why: the
+// row has to name the sleeper and the machines it woke on, not just the drift.
+func TestFleetShowMarksSleeper(t *testing.T) {
+	dir := seedFleet(t, map[string]string{
+		"alice.json": `{"owner":"alice","artifacts":[
+			{"id":"x","name":"waker","kind":"skill","hash":"h1","drift":"drifted","verdict":"review","sleeper":true},
+			{"id":"y","name":"churner","kind":"skill","hash":"h2","drift":"drifted","verdict":"review"}]}`,
+		"bob.json": `{"owner":"bob","artifacts":[
+			{"id":"x","name":"waker","kind":"skill","hash":"h1","drift":"drifted","verdict":"review","sleeper":true},
+			{"id":"y","name":"churner","kind":"skill","hash":"h2","drift":"drifted","verdict":"review"}]}`,
+	})
+	app, out, _ := newApp()
+	code := app.Execute(context.Background(), []string{"fleet", "show", "--dir", dir, "--policy", filepath.Join(dir, "none.json")})
+	if code != cli.ExitOK {
+		t.Fatalf("fleet show exit = %d", code)
+	}
+	got := out.String()
+	if !strings.Contains(got, "sleeper on 2/2") {
+		t.Errorf("the sleeper row must say it woke, and on how many machines:\n%s", got)
+	}
+	if strings.Contains(got[strings.Index(got, "churner"):], "sleeper") {
+		t.Errorf("a plain drift must not be reported as a sleeper:\n%s", got)
+	}
+}

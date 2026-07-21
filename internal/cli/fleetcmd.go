@@ -259,6 +259,11 @@ func (a *App) printFleetReport(r fleet.Report) {
 	fmt.Fprintf(a.Stdout, "fleet: %d machines, %d distinct artifacts\n\n", r.Owners, r.Artifacts)
 	for _, e := range r.Exposures {
 		risk := ""
+		// Sleeper leads: it is the top sort key, so the row must say why it ranks
+		// first rather than reading like the plain drift it also counts as.
+		if e.Sleeper > 0 {
+			risk += fmt.Sprintf("  ⏰ sleeper on %d/%d", e.Sleeper, e.Installs)
+		}
 		if e.Drifted > 0 {
 			risk += fmt.Sprintf("  ⚠ drifted on %d/%d", e.Drifted, e.Installs)
 		}
