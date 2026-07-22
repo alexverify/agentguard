@@ -55,7 +55,8 @@ changes. Releases via GoReleaser on `v*` tags (darwin/linux/windows, amd64/arm64
 ## Status
 
 - **Component 1** (scan/verify/lockfile/sign) — complete. Tools: Claude Code,
-  Cursor, Gemini, OpenCode, Codex, Windsurf, Copilot CLI. Linux/macOS/Windows.
+  Cursor, Gemini, OpenCode, Codex, Windsurf, Copilot CLI, VS Code.
+  Linux/macOS/Windows.
 - **Component 2** (runtime MCP firewall) — complete: `wrap`/`unwrap` rewrite
   `.mcp.json` to route stdio servers through `eyebrow mcp-shim`, which relays
   JSON-RPC byte-for-byte, enforces per-server tool policy (deny → JSON-RPC error),
