@@ -522,13 +522,17 @@ func build(now time.Time) *state {
 	mkGH := func() fleet.Artifact {
 		return fleet.Artifact{ID: ghID, Name: "github-tools", Kind: string(artifact.TypeMCPServer), Hash: "sha256-demo-github-tools-v1", Source: "@acme/github-tools@2.4.1", Drift: "verified", Verdict: "trusted"}
 	}
-	mkDeploy := func(hash, drift, verdict string) fleet.Artifact {
-		return fleet.Artifact{ID: deployID, Name: "acme-deploy-helper", Kind: string(artifact.TypeSkill), Hash: hash, Source: "skills/acme-deploy-helper", Drift: drift, Verdict: verdict}
+	// sleeper is set on alice and bob so the fleet data actually carries the wake
+	// the sleeper alert below reports ("on 2 of 5 machine(s)") — the heatmap rings
+	// exactly those two cells. Carol drifted without waking, which is the contrast
+	// the grid exists to show.
+	mkDeploy := func(hash, drift, verdict string, sleeper bool) fleet.Artifact {
+		return fleet.Artifact{ID: deployID, Name: "acme-deploy-helper", Kind: string(artifact.TypeSkill), Hash: hash, Source: "skills/acme-deploy-helper", Drift: drift, Verdict: verdict, Sleeper: sleeper}
 	}
 	s.snaps = []fleet.Snapshot{
-		{Owner: "alice", GeneratedAt: now, Artifacts: []fleet.Artifact{mkGH(), mkDeploy("sha256-demo-deploy-v2b", "drifted", "quarantine")}},
-		{Owner: "bob", GeneratedAt: now, Artifacts: []fleet.Artifact{mkGH(), mkDeploy("sha256-demo-deploy-v2", "drifted", "quarantine")}},
-		{Owner: "carol", GeneratedAt: now, Artifacts: []fleet.Artifact{mkGH(), mkDeploy("sha256-demo-deploy-v2c", "drifted", "quarantine")}},
+		{Owner: "alice", GeneratedAt: now, Artifacts: []fleet.Artifact{mkGH(), mkDeploy("sha256-demo-deploy-v2b", "drifted", "quarantine", true)}},
+		{Owner: "bob", GeneratedAt: now, Artifacts: []fleet.Artifact{mkGH(), mkDeploy("sha256-demo-deploy-v2", "drifted", "quarantine", true)}},
+		{Owner: "carol", GeneratedAt: now, Artifacts: []fleet.Artifact{mkGH(), mkDeploy("sha256-demo-deploy-v2c", "drifted", "quarantine", false)}},
 		{Owner: "dana", GeneratedAt: now, Artifacts: []fleet.Artifact{
 			mkGH(),
 			{ID: "demo-tracker", Name: "tracker", Kind: string(artifact.TypeMCPServer), Hash: "sha256-demo-tracker-v1", Source: "giftshop.club/tracker", Drift: "new", Verdict: "review"},

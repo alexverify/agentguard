@@ -65,6 +65,7 @@ type Report struct {
 type Cell struct {
 	Drift   string `json:"drift,omitempty"`   // ""=absent | verified|updated|drifted|new|unsigned
 	Verdict string `json:"verdict,omitempty"` // trusted|review|quarantine
+	Sleeper bool   `json:"sleeper,omitempty"` // this owner is one the sleeper woke on (F2)
 }
 
 // GridRow is one artifact across every owner, with cells aligned to Grid.Owners.
@@ -200,7 +201,7 @@ func buildGrid(latest map[string]Snapshot, owners []string) Grid {
 		installs := 0
 		for i, owner := range owners {
 			if a, ok := byOwner[owner][id]; ok {
-				cells[i] = Cell{Drift: a.Drift, Verdict: a.Verdict}
+				cells[i] = Cell{Drift: a.Drift, Verdict: a.Verdict, Sleeper: a.Sleeper}
 				installs++
 			}
 		}

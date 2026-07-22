@@ -328,3 +328,26 @@ func ids(es []Exposure) []string {
 	}
 	return out
 }
+
+// The heatmap must show *which* machine a sleeper woke on, not just that the
+// artifact drifted somewhere — blast radius is the whole point of the grid.
+func TestBuildGridMarksSleeperCell(t *testing.T) {
+	r := Aggregate([]Snapshot{
+		{Owner: "alice", GeneratedAt: ts("2026-01-02T00:00:00Z"), Artifacts: []Artifact{
+			{ID: "x", Name: "waker", Kind: "skill", Hash: "h1", Drift: "drifted", Verdict: "review", Sleeper: true},
+		}},
+		{Owner: "bob", GeneratedAt: ts("2026-01-02T00:00:00Z"), Artifacts: []Artifact{
+			{ID: "x", Name: "waker", Kind: "skill", Hash: "h2", Drift: "drifted", Verdict: "review"},
+		}},
+	})
+	if len(r.Grid.Rows) != 1 {
+		t.Fatalf("want 1 grid row, got %d", len(r.Grid.Rows))
+	}
+	cells := r.Grid.Rows[0].Cells // aligned to Grid.Owners: alice, bob
+	if !cells[0].Sleeper {
+		t.Errorf("alice's cell should be marked a sleeper: %+v", cells[0])
+	}
+	if cells[1].Sleeper {
+		t.Errorf("bob only drifted — his cell must not claim a sleeper: %+v", cells[1])
+	}
+}

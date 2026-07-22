@@ -263,6 +263,9 @@ export interface FleetExposure {
 export interface FleetCell {
   drift?: string
   verdict?: string
+  // True when this owner is one the sleeper woke on (F2) — dormant, then
+  // drifted, then run for the first time.
+  sleeper?: boolean
 }
 
 // FleetGridRow is one artifact across every owner, cells aligned to grid.owners.
@@ -404,7 +407,7 @@ export const demoFleet: FleetReport = {
         installs: 3,
         monoculture: false,
         outlier: false,
-        cells: [_, _, _, { drift: "drifted", verdict: "quarantine" }, { drift: "drifted", verdict: "review" }, V, _, _],
+        cells: [_, _, _, { drift: "drifted", verdict: "quarantine", sleeper: true }, { drift: "drifted", verdict: "review" }, V, _, _],
       },
       {
         id: "mcp_002",
