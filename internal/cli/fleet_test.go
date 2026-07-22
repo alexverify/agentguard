@@ -97,3 +97,45 @@ func TestFleetShowMarksSleeper(t *testing.T) {
 		t.Errorf("a plain drift must not be reported as a sleeper:\n%s", got)
 	}
 }
+
+// A sleeper that breaches the blast radius must fail CI as a *sleeper*, not as
+// the generic drift it also counts as — the message is the whole point of the
+// gate, and "woke up" is a different incident from routine churn.
+func TestFleetVerifyBlastBreachNamesSleeper(t *testing.T) {
+	dir := seedFleet(t, map[string]string{
+		"alice.json": `{"owner":"alice","artifacts":[{"id":"x","name":"waker","kind":"skill","hash":"h1","drift":"drifted","verdict":"review","sleeper":true}]}`,
+		"bob.json":   `{"owner":"bob","artifacts":[{"id":"x","name":"waker","kind":"skill","hash":"h2","drift":"drifted","verdict":"review","sleeper":true}]}`,
+	})
+	policyPath := filepath.Join(dir, "eyebrow.policy.json")
+	if err := os.WriteFile(policyPath, []byte(`{"fleet":{"maxBlastRadius":1}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	app, out, _ := newApp()
+	code := app.Execute(context.Background(), []string{"fleet", "verify", "--dir", dir, "--policy", policyPath})
+	if code != cli.ExitDrift {
+		t.Fatalf("a woken sleeper over the limit should fail (1), got %d", code)
+	}
+	got := out.String()
+	if !strings.Contains(got, "woke as a sleeper on 2 machine(s)") {
+		t.Errorf("the gate must name the sleeper, not generic drift:\n%s", got)
+	}
+}
+
+// A plain drift breach keeps the generic wording — no false sleeper claim.
+func TestFleetVerifyBlastBreachPlainDriftUnchanged(t *testing.T) {
+	dir := seedFleet(t, map[string]string{
+		"alice.json": `{"owner":"alice","artifacts":[{"id":"x","name":"churner","kind":"skill","hash":"h1","drift":"drifted","verdict":"review"}]}`,
+		"bob.json":   `{"owner":"bob","artifacts":[{"id":"x","name":"churner","kind":"skill","hash":"h2","drift":"drifted","verdict":"review"}]}`,
+	})
+	policyPath := filepath.Join(dir, "eyebrow.policy.json")
+	if err := os.WriteFile(policyPath, []byte(`{"fleet":{"maxBlastRadius":1}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	app, out, _ := newApp()
+	if code := app.Execute(context.Background(), []string{"fleet", "verify", "--dir", dir, "--policy", policyPath}); code != cli.ExitDrift {
+		t.Fatalf("want exit 1, got %d", code)
+	}
+	if got := out.String(); strings.Contains(got, "sleeper") || !strings.Contains(got, "drifted/quarantined") {
+		t.Errorf("plain drift must keep the generic wording:\n%s", got)
+	}
+}

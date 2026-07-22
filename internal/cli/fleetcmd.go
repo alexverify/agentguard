@@ -119,6 +119,14 @@ func (a *App) printGateFailures(res fleet.GateResult) {
 		}
 	}
 	for _, e := range res.BlastBreaches {
+		// A sleeper counts as drift too, so it would otherwise fail CI with the
+		// blandest possible message for the highest-signal event we detect. Name
+		// it: waking up is an incident, routine churn is not.
+		if e.Sleeper > 0 {
+			fmt.Fprintf(a.Stdout, "fleet: blast radius — %s (%s) woke as a sleeper on %d machine(s) — over the fleet limit\n",
+				e.Name, e.Kind, e.Sleeper)
+			continue
+		}
 		fmt.Fprintf(a.Stdout, "fleet: blast radius — %s (%s) drifted/quarantined on %d machine(s) — over the fleet limit\n",
 			e.Name, e.Kind, max(e.Drifted, e.Quarantine))
 	}
