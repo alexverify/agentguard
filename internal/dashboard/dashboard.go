@@ -91,6 +91,10 @@ type Deps struct {
 	// (solo), an approval counts as trusted on its status alone and the dashboard
 	// hides the signed/unsigned/verified vocabulary entirely.
 	TeamMode bool
+	// Demo is true when the server renders the built-in demo dataset
+	// (EYEBROW_DEMO=1). Surfaced on /api/scan so the UI shows a badge —
+	// fabricated findings must never be mistaken for real ones.
+	Demo bool
 	// Static overrides the embedded UI assets (used in tests); nil uses the
 	// embedded Next.js export.
 	Static fs.FS

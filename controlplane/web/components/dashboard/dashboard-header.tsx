@@ -1,3 +1,5 @@
+"use client"
+
 import Link from "next/link"
 import { ShieldCheck } from "lucide-react"
 import { GithubIcon } from "@/components/github-icon"

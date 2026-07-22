@@ -1038,3 +1038,25 @@ func TestApproveLockedArtifactStillWorks(t *testing.T) {
 		t.Fatalf("approving a locked artifact must not add rows, got %d", len(locked.Artifacts))
 	}
 }
+
+func TestScanDemoFlag(t *testing.T) {
+	lf := lockfile.Build(nil, time.Unix(0, 0).UTC(), "eyebrow/test")
+	mk := func(demo bool) *dashboard.Server {
+		return dashboard.New(dashboard.Deps{
+			Inventory: func(context.Context) (lockfile.Lockfile, error) { return lf, nil },
+			Locked:    func(context.Context) (lockfile.Lockfile, error) { return lf, nil },
+			Demo:      demo,
+		})
+	}
+	rec := get(t, mk(true).Handler(), "/api/scan")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), `"demo":true`) {
+		t.Fatalf("demo mode scan missing demo flag: %s", rec.Body.String())
+	}
+	rec = get(t, mk(false).Handler(), "/api/scan")
+	if strings.Contains(rec.Body.String(), `"demo"`) {
+		t.Fatalf("real mode scan must omit demo field: %s", rec.Body.String())
+	}
+}

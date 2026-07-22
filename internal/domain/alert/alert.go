@@ -1,14 +1,17 @@
 // Package alert derives team-level alerts from what the control plane actually
-// holds: the aggregated fleet report (which artifacts drifted or are quarantined,
-// and on how many machines) and the ingested audit events (which wrapped servers
-// were blocked from egress or had a tool call denied). It is pure — the caller
-// supplies the already-computed report and events.
+// holds: the aggregated fleet report (which artifacts drifted, are quarantined,
+// or woke as sleepers, and on how many machines) and the ingested audit events
+// (which wrapped servers were blocked from egress or had a tool call denied). It
+// is pure — the caller supplies the already-computed report and events.
 //
-// It deliberately does NOT invent finding-level alerts: fleet snapshots are
-// content-free (no findings), so a "new critical finding across the fleet" alert
-// would require richer snapshots than eyebrow ships today. We alert on what we can
-// prove from the data on hand, and name the gap rather than fake it — the same
-// honesty discipline as reachability and the MCP-name usage join.
+// The sleeper verdict is computed on each device (F2's usage.Assess) and carried
+// in the snapshot as a single derived boolean, so alerting on it stays
+// content-free. It deliberately does NOT invent finding-level alerts: fleet
+// snapshots carry verdicts, not findings, so a "new critical finding across the
+// fleet" alert would require richer (non-content-free) snapshots than eyebrow
+// ships today. We alert on what we can prove from the data on hand, and name the
+// gap rather than fake it — the same honesty discipline as reachability and the
+// MCP-name usage join.
 package alert
 
 import (
@@ -23,6 +26,7 @@ import (
 type Kind string
 
 const (
+	KindSleeper      Kind = "sleeper"       // an artifact woke: dormant, then drifted, then ran for the first time
 	KindDrift        Kind = "drift"         // an artifact drifted on one or more machines
 	KindQuarantine   Kind = "quarantine"    // a quarantined artifact is still installed somewhere
 	KindEgressDenied Kind = "egress_denied" // a wrapped server was blocked reaching a host
@@ -64,6 +68,15 @@ func Derive(rep fleet.Report, events []audit.Event) []Alert {
 	var out []Alert
 
 	for _, e := range rep.Exposures {
+		if e.Sleeper > 0 {
+			out = append(out, Alert{
+				Kind:     KindSleeper,
+				Severity: SeverityCritical,
+				Subject:  e.Name,
+				Count:    e.Sleeper,
+				Detail:   fmt.Sprintf("woke as a sleeper (dormant → drifted → first run) on %d of %d machine(s) — quarantine and review", e.Sleeper, e.Installs),
+			})
+		}
 		if e.Quarantine > 0 {
 			out = append(out, Alert{
 				Kind:     KindQuarantine,

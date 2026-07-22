@@ -29,6 +29,13 @@ const (
 // MethodToolCall is the MCP method the shim audits.
 const MethodToolCall = "tools/call"
 
+// MethodToolList is the MCP method whose response advertises the tool surface.
+const MethodToolList = "tools/list"
+
+// MethodToolListChanged is the notification a server sends when its tool list
+// mutates mid-session.
+const MethodToolListChanged = "notifications/tools/list_changed"
+
 // Message is the inspected view of one line.
 type Message struct {
 	Kind     Kind
@@ -38,6 +45,8 @@ type Message struct {
 	ArgsJSON []byte // raw params.arguments for tools/call requests
 	IsError  bool   // responses: error member present
 	ErrCode  int    // responses: error.code
+
+	ResultJSON json.RawMessage // responses: the raw result member
 }
 
 // wire is the superset of fields Parse looks at.
@@ -78,7 +87,7 @@ func Parse(line []byte) Message {
 	case id != "" && w.Error != nil:
 		return Message{Kind: KindResponse, ID: id, IsError: true, ErrCode: w.Error.Code}
 	case id != "" && w.Result != nil:
-		return Message{Kind: KindResponse, ID: id}
+		return Message{Kind: KindResponse, ID: id, ResultJSON: w.Result}
 	default:
 		return Message{Kind: KindUnknown}
 	}
@@ -92,15 +101,20 @@ func (m Message) ArgsDigest() string { return digest.Inline(m.ArgsJSON) }
 // the audit trail must never hold raw values (they routinely contain secrets).
 type Pending struct {
 	ID         string
+	Method     string // distinguishes tools/call from tools/list
 	Tool       string
 	ArgsDigest string
 	At         time.Time
 }
 
-// Completed is a tools/call whose response arrived.
+// Completed is a tracked call whose response arrived. Method distinguishes
+// tools/call completions from tools/list ones; ResultJSON carries the raw
+// result bytes so a tools/list completion can be inspected for its surface.
 type Completed struct {
+	Method     string
 	Tool       string
 	ArgsDigest string
+	ResultJSON json.RawMessage
 	Duration   time.Duration
 	OK         bool
 	ErrCode    int
@@ -122,10 +136,13 @@ func NewTracker() *Tracker {
 func (t *Tracker) Observe(m Message, at time.Time) *Completed {
 	switch m.Kind {
 	case KindRequest:
-		if m.Method == MethodToolCall {
+		switch m.Method {
+		case MethodToolCall:
 			t.pending[m.ID] = Pending{
-				ID: m.ID, Tool: m.ToolName, ArgsDigest: m.ArgsDigest(), At: at,
+				ID: m.ID, Method: m.Method, Tool: m.ToolName, ArgsDigest: m.ArgsDigest(), At: at,
 			}
+		case MethodToolList:
+			t.pending[m.ID] = Pending{ID: m.ID, Method: m.Method, At: at}
 		}
 	case KindResponse:
 		p, ok := t.pending[m.ID]
@@ -134,8 +151,10 @@ func (t *Tracker) Observe(m Message, at time.Time) *Completed {
 		}
 		delete(t.pending, m.ID)
 		return &Completed{
+			Method:     p.Method,
 			Tool:       p.Tool,
 			ArgsDigest: p.ArgsDigest,
+			ResultJSON: m.ResultJSON,
 			Duration:   at.Sub(p.At),
 			OK:         !m.IsError,
 			ErrCode:    m.ErrCode,

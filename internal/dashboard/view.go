@@ -7,8 +7,10 @@ package dashboard
 
 import (
 	"github.com/alexverify/eyebrow/internal/adapters/auditlog"
+	"github.com/alexverify/eyebrow/internal/domain/audit"
 	"github.com/alexverify/eyebrow/internal/domain/lockfile"
 	"github.com/alexverify/eyebrow/internal/domain/reputation"
+	"github.com/alexverify/eyebrow/internal/domain/toolsurface"
 	"github.com/alexverify/eyebrow/internal/domain/usage"
 )
 
@@ -57,6 +59,20 @@ func (s *Server) usageSummary() map[string]usage.Stat {
 		return nil
 	}
 	return usage.Summarize(events)
+}
+
+// toolSurfaces reads the runtime audit log and folds tool_surface events into
+// the latest per-server surface status. Supplementary like usage: a nil Audit
+// dep or read error yields nothing rather than failing the scan view.
+func (s *Server) toolSurfaces() map[string]toolsurface.Status {
+	if s.deps.Audit == nil {
+		return nil
+	}
+	events, err := s.deps.Audit(auditlog.Filter{Kind: audit.KindToolSurface})
+	if err != nil {
+		return nil
+	}
+	return toolsurface.Summarize(events)
 }
 
 // approvedSet returns the IDs of locked artifacts whose approval is trusted.

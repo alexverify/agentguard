@@ -73,12 +73,20 @@ func mcpServersFromConfig(tool, path, scope string, parseFn func([]byte, any) er
 	if err := parseFn(b, &cfg); err != nil {
 		return nil
 	}
+	return mcpArtifactsFrom(tool, path, scope, cfg.MCPServers)
+}
+
+// mcpArtifactsFrom assembles artifacts from an already-parsed server map. It is
+// split out so a tool that nests its servers under a different key (VS Code uses
+// "servers", not "mcpServers") reuses every rule about sources, capabilities,
+// and IDs — only the parsing differs.
+func mcpArtifactsFrom(tool, path, scope string, decls map[string]mcpDecl) []artifact.Artifact {
 	baseDir, err := filepath.Abs(filepath.Dir(path))
 	if err != nil {
 		baseDir = filepath.Dir(path)
 	}
-	out := make([]artifact.Artifact, 0, len(cfg.MCPServers))
-	for name, decl := range cfg.MCPServers {
+	out := make([]artifact.Artifact, 0, len(decls))
+	for name, decl := range decls {
 		decl = unshim(decl)
 		a := artifact.Artifact{
 			Tool:           tool,

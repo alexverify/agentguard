@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 
 	"github.com/alexverify/eyebrow/internal/adapters/auditlog"
 	"github.com/alexverify/eyebrow/internal/adapters/fleetstore"
@@ -18,6 +19,7 @@ import (
 	"github.com/alexverify/eyebrow/internal/app/ports"
 	"github.com/alexverify/eyebrow/internal/client"
 	"github.com/alexverify/eyebrow/internal/dashboard"
+	"github.com/alexverify/eyebrow/internal/dashboard/demodata"
 	"github.com/alexverify/eyebrow/internal/domain/alert"
 	"github.com/alexverify/eyebrow/internal/domain/audit"
 	"github.com/alexverify/eyebrow/internal/domain/fleet"
@@ -26,6 +28,11 @@ import (
 	"github.com/alexverify/eyebrow/internal/domain/posture"
 	"github.com/alexverify/eyebrow/internal/domain/reputation"
 )
+
+// demoEnabled reports whether v opts the dashboard into the built-in demo
+// dataset. Only exact "1"/"true" count: anything else (including "TRUE" or
+// "yes") means real data — no fuzzy truthiness on a flag this consequential.
+func demoEnabled(v string) bool { return v == "1" || v == "true" }
 
 // runDashboard serves the local, read-only web dashboard on loopback. It reads
 // what this machine already produces — the live inventory, drift against the
@@ -47,6 +54,15 @@ func (a *App) runDashboard(ctx context.Context, args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return ExitUsage
 	}
+
+	if demoEnabled(os.Getenv("EYEBROW_DEMO")) {
+		// The demo dataset is fully self-contained (Task 2's demodata.Deps),
+		// so none of the real-data-source flags above apply here — --addr is
+		// the only one that still does anything in this branch.
+		fmt.Fprintf(a.Stdout, "serving DEMO data (EYEBROW_DEMO=1) — nothing on this machine is being scanned\n")
+		return a.serveDashboard(ctx, dashboard.New(demodata.Deps()), *addr)
+	}
+
 	if *reputationServer == "" {
 		*reputationServer, *reputationToken = *server, *token
 	}
@@ -168,7 +184,14 @@ func (a *App) runDashboard(ctx context.Context, args []string) int {
 		Blobs: snapshotstore.New(*snapshotDir).Get,
 	})
 
-	ln, err := net.Listen("tcp", *addr)
+	return a.serveDashboard(ctx, srv, *addr)
+}
+
+// serveDashboard binds addr, announces the URL and write token, then serves
+// srv until ctx is cancelled. Shared by the real and demo (EYEBROW_DEMO=1)
+// branches of runDashboard so the listen/serve/print tail isn't duplicated.
+func (a *App) serveDashboard(ctx context.Context, srv *dashboard.Server, addr string) int {
+	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return a.fail("dashboard", err)
 	}

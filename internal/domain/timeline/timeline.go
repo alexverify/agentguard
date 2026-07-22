@@ -25,6 +25,9 @@ const (
 	KindFirstUsed Kind = "first_used"
 	KindLastUsed  Kind = "last_used"
 	KindDrifted   Kind = "drifted"
+	// KindToolSurfaceChanged marks the advertised MCP tool surface changing
+	// between observed sessions — the tool-poisoning rug-pull signal.
+	KindToolSurfaceChanged Kind = "tool_surface_changed"
 )
 
 // Severity drives the dot color in the ribbon. It mirrors the dashboard scale.
@@ -59,6 +62,9 @@ type Input struct {
 	DriftedAt   time.Time // when drift was detected (the scan time); zero if none
 	DriftDetail string    // the human one-liner for the drift
 	DriftDanger bool      // unexplained/unverifiable drift → critical, else benign update
+
+	SurfaceChangedAt time.Time // advertised MCP tool surface changed (runtime observation)
+	SurfaceDetail    string    // e.g. "12 → 13 tools"
 }
 
 // Build returns the ordered event ribbon. Events whose time is zero are
@@ -88,6 +94,8 @@ func Build(in Input) []Event {
 		driftSev = SeverityCritical
 	}
 	add(in.DriftedAt, KindDrifted, "Drift detected", in.DriftDetail, driftSev)
+
+	add(in.SurfaceChangedAt, KindToolSurfaceChanged, "Tool surface changed", in.SurfaceDetail, SeverityHigh)
 
 	if in.LastUsed.After(in.FirstUsed) {
 		detail := ""

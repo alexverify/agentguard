@@ -22,6 +22,7 @@ import (
 	"github.com/alexverify/eyebrow/internal/domain/audit"
 	"github.com/alexverify/eyebrow/internal/domain/jsonrpc"
 	"github.com/alexverify/eyebrow/internal/domain/policy"
+	"github.com/alexverify/eyebrow/internal/domain/toolsurface"
 )
 
 // Deps are the relay's collaborators.
@@ -93,7 +94,31 @@ func (s *Service) Run(ctx context.Context, opts Options, clientIn io.Reader, cli
 	// Server → client: complete pending calls, forward verbatim. This side
 	// ending means the session is over.
 	err := pump(serverOut, toClient, func(line []byte) bool {
-		if done := observe(jsonrpc.Parse(line)); done != nil {
+		m := jsonrpc.Parse(line)
+		if m.Kind == jsonrpc.KindNotification && m.Method == jsonrpc.MethodToolListChanged {
+			s.emit(ctx, audit.Event{
+				At: s.deps.Clock.Now(), Session: opts.Session, Server: opts.Server,
+				Kind: audit.KindToolListChanged,
+			})
+			return true
+		}
+		done := observe(m)
+		if done == nil {
+			return true
+		}
+		switch done.Method {
+		case jsonrpc.MethodToolList:
+			// The advertised tool surface is what the agent reads and obeys —
+			// record it as a digest so a later mutation is provable. Content
+			// (descriptions, schemas) never reaches the log.
+			if sf, ok := toolsurface.Extract(done.ResultJSON); ok {
+				s.emit(ctx, audit.Event{
+					At: s.deps.Clock.Now(), Session: opts.Session, Server: opts.Server,
+					Kind: audit.KindToolSurface, ArgsDigest: sf.Digest(),
+					Detail: fmt.Sprintf("tools=%d", sf.Count()), ToolNames: sf.Names(),
+				})
+			}
+		default:
 			s.emit(ctx, audit.Event{
 				At: s.deps.Clock.Now(), Session: opts.Session, Server: opts.Server,
 				Kind: audit.KindToolCall, Tool: done.Tool, ArgsDigest: done.ArgsDigest,
@@ -108,6 +133,9 @@ func (s *Service) Run(ctx context.Context, opts Options, clientIn io.Reader, cli
 	pending := tracker.Drain()
 	mu.Unlock()
 	for _, p := range pending {
+		if p.Method != jsonrpc.MethodToolCall {
+			continue // an unanswered tools/list is not a tool call
+		}
 		s.emit(ctx, audit.Event{
 			At: s.deps.Clock.Now(), Session: opts.Session, Server: opts.Server,
 			Kind: audit.KindToolCall, Tool: p.Tool, ArgsDigest: p.ArgsDigest,

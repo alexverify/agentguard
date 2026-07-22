@@ -184,7 +184,7 @@ export function Dashboard() {
         </div>
         <div className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 font-mono text-xs text-muted-foreground">
           <Terminal className="h-3.5 w-3.5 text-primary" />
-          <span className="text-foreground">npx eyebrow scan</span>
+          <span className="text-foreground">eyebrow scan</span>
         </div>
       </div>
 
@@ -1186,7 +1186,15 @@ function FleetConformancePanel({ c }: { c: FleetConformance }) {
 
 // cellClass colors a heatmap square by an owner's drift/verdict for an artifact.
 // Absent (no install) is a faint slot; quarantine and drift are the loud ones.
+// cellClass colors a cell by state, then rings the ones a sleeper woke on. The
+// ring is additive on purpose: a woken cell is already drifted or quarantined,
+// so it keeps that color and gains a mark — one more fact, not a new color to
+// learn, and legible at 20px without relying on hue.
 function cellClass(c: FleetCell): string {
+  return cn(cellFill(c), c.sleeper && "ring-2 ring-inset ring-foreground")
+}
+
+function cellFill(c: FleetCell): string {
   if (!c.drift) return "bg-muted/30"
   if (c.verdict === "quarantine") return "bg-sev-critical"
   switch (c.drift) {
@@ -1248,7 +1256,7 @@ function FleetHeatmap({ grid }: { grid: FleetGrid }) {
               {r.cells.map((c, i) => (
                 <div
                   key={i}
-                  title={`${grid.owners[i]} · ${c.drift ? (c.verdict === "quarantine" ? "quarantine" : c.drift) : "not installed"}`}
+                  title={`${grid.owners[i]} · ${c.drift ? (c.verdict === "quarantine" ? "quarantine" : c.drift) : "not installed"}${c.sleeper ? " · woke as a sleeper" : ""}`}
                   className={cn("h-5 w-5 rounded-sm", cellClass(c))}
                 />
               ))}
@@ -1264,6 +1272,10 @@ function FleetHeatmap({ grid }: { grid: FleetGrid }) {
         <LegendSwatch className="bg-sev-critical/70" label="drifted" />
         <LegendSwatch className="bg-sev-critical" label="quarantine" />
         <LegendSwatch className="bg-muted/30" label="not installed" />
+        <LegendSwatch
+          className="bg-sev-critical/70 ring-2 ring-inset ring-foreground"
+          label="woke as a sleeper"
+        />
       </div>
     </div>
   )

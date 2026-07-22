@@ -127,3 +127,12 @@ func find(t *testing.T, evs []Event, k Kind) Event {
 	t.Fatalf("no %q event in %v", k, kinds(evs))
 	return Event{}
 }
+
+func TestBuildIncludesToolSurfaceChange(t *testing.T) {
+	at := time.Date(2026, 7, 2, 10, 0, 0, 0, time.UTC)
+	evs := Build(Input{SurfaceChangedAt: at, SurfaceDetail: "2 → 3 tools"})
+	if len(evs) != 1 || evs[0].Kind != KindToolSurfaceChanged ||
+		evs[0].Label != "Tool surface changed" || evs[0].Severity != SeverityHigh {
+		t.Fatalf("Build() = %+v", evs)
+	}
+}

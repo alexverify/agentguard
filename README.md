@@ -6,6 +6,11 @@
 
 [![ci](https://github.com/alexverify/eyebrow/actions/workflows/ci.yml/badge.svg)](https://github.com/alexverify/eyebrow/actions/workflows/ci.yml)
 
+<p align="center">
+  <a href="https://eyebrow.cc"><img src="https://img.shields.io/badge/Website-eyebrow.cc-1a7f37?style=for-the-badge&logo=safari&logoColor=white" alt="Website — eyebrow.cc"></a>&nbsp;
+  <a href="https://x.com/eyebrowCC"><img src="https://img.shields.io/badge/Follow-%40eyebrowCC-000000?style=for-the-badge&logo=x&logoColor=white" alt="Follow @eyebrowCC on X"></a>
+</p>
+
 **Supply-chain integrity for AI coding tools.** A single static binary that
 discovers every skill, MCP server, plugin, hook, and rule installed across your
 AI coding tools, hashes them into a lockfile, statically scans them, and detects
@@ -213,7 +218,7 @@ Requires Go 1.25+. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 | Component | What | Status |
 |---|---|---|
-| 1 — `scan`/`verify`/lockfile | Read-only inventory, hashing, analysis, drift, signing/trust, CI Action | **implemented** (Claude Code, Cursor, Gemini, OpenCode, Codex, Windsurf, Copilot CLI) |
+| 1 — `scan`/`verify`/lockfile | Read-only inventory, hashing, analysis, drift, signing/trust, CI Action | **implemented** (Claude Code, Claude Desktop, Cursor, Gemini, OpenCode, Codex, Windsurf, Copilot CLI, VS Code, Zed, Kiro) |
 | 2 — `wrap` | MCP interposition supervisor, OS sandbox, egress proxy + redaction | **implemented** — shim with audit log, live tool policy, egress proxy + secret redaction, OS sandbox (Seatbelt/bwrap) |
 | 3 — control plane | Policy API, audit log, approval workflow, dashboard | **in progress** — local dashboard (embedded Next.js UI, `eyebrow dashboard`) shipped: trust verdicts, capability & file-manifest drift diff (with line-level diffs when a baseline is captured), usage telemetry (MCP tool calls + skill/subagent activation hooks) + dormant-then-active detection, per-artifact timeline, reachability-aware findings, fleet blast-radius / inventory heatmap / policy conformance with an enforced CI gate (`eyebrow fleet` / `fleet verify`), and an opt-in hash-only reputation signal; a self-hostable team server (`eyebrow serve`) ingests snapshots and audit events, serves the same aggregated blast-radius, org policy / trusted-keys pull, a hosted CI gate (`fleet verify --server`), team alerts (`eyebrow alerts`), a live hash-only reputation lookup (`eyebrow reputation`), and the local dashboard's Fleet/Alerts tabs on hosted data (`eyebrow dashboard --server`) — slices 4a–4f. A centrally-hosted multi-user UI with SSO remains designed. What leaves a machine is specified in [docs/privacy.md](docs/privacy.md) |
 

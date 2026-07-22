@@ -115,6 +115,40 @@ func TestAggregateEmpty(t *testing.T) {
 	}
 }
 
+func TestAggregateCountsSleeper(t *testing.T) {
+	snaps := []Snapshot{
+		{Owner: "alice", GeneratedAt: ts("2026-06-10T00:00:00Z"), Artifacts: []Artifact{
+			{ID: "x", Name: "feed", Kind: "skill", Hash: "h2", Drift: "drifted", Verdict: "quarantine", Sleeper: true},
+		}},
+		{Owner: "bob", GeneratedAt: ts("2026-06-10T00:00:00Z"), Artifacts: []Artifact{
+			{ID: "x", Name: "feed", Kind: "skill", Hash: "h2", Drift: "drifted", Verdict: "review", Sleeper: true},
+		}},
+		{Owner: "carol", GeneratedAt: ts("2026-06-10T00:00:00Z"), Artifacts: []Artifact{
+			{ID: "x", Name: "feed", Kind: "skill", Hash: "h1", Drift: "verified", Verdict: "trusted", Sleeper: false},
+		}},
+	}
+	x := exposure(t, Aggregate(snaps), "x")
+	if x.Sleeper != 2 {
+		t.Errorf("sleeper count = %d, want 2 (alice, bob)", x.Sleeper)
+	}
+}
+
+func TestAggregateRanksSleeperAheadOfPureDrift(t *testing.T) {
+	// Two artifacts, each drifted on exactly one machine; only "waker" is a
+	// sleeper. The sleeper must sort first despite equal drift counts.
+	snaps := []Snapshot{
+		{Owner: "alice", GeneratedAt: ts("2026-06-10T00:00:00Z"), Artifacts: []Artifact{
+			{ID: "plain", Name: "plain", Kind: "skill", Hash: "p", Drift: "drifted", Verdict: "review"},
+			{ID: "waker", Name: "waker", Kind: "skill", Hash: "w", Drift: "drifted", Verdict: "review", Sleeper: true},
+		}},
+	}
+	r := Aggregate(snaps)
+	if r.Exposures[0].ID != "waker" {
+		t.Errorf("sleeper exposure should sort first, got order %s, %s",
+			r.Exposures[0].ID, r.Exposures[1].ID)
+	}
+}
+
 func gridRow(t *testing.T, g Grid, id string) GridRow {
 	t.Helper()
 	for _, r := range g.Rows {
@@ -293,4 +327,27 @@ func ids(es []Exposure) []string {
 		out[i] = e.ID
 	}
 	return out
+}
+
+// The heatmap must show *which* machine a sleeper woke on, not just that the
+// artifact drifted somewhere — blast radius is the whole point of the grid.
+func TestBuildGridMarksSleeperCell(t *testing.T) {
+	r := Aggregate([]Snapshot{
+		{Owner: "alice", GeneratedAt: ts("2026-01-02T00:00:00Z"), Artifacts: []Artifact{
+			{ID: "x", Name: "waker", Kind: "skill", Hash: "h1", Drift: "drifted", Verdict: "review", Sleeper: true},
+		}},
+		{Owner: "bob", GeneratedAt: ts("2026-01-02T00:00:00Z"), Artifacts: []Artifact{
+			{ID: "x", Name: "waker", Kind: "skill", Hash: "h2", Drift: "drifted", Verdict: "review"},
+		}},
+	})
+	if len(r.Grid.Rows) != 1 {
+		t.Fatalf("want 1 grid row, got %d", len(r.Grid.Rows))
+	}
+	cells := r.Grid.Rows[0].Cells // aligned to Grid.Owners: alice, bob
+	if !cells[0].Sleeper {
+		t.Errorf("alice's cell should be marked a sleeper: %+v", cells[0])
+	}
+	if cells[1].Sleeper {
+		t.Errorf("bob only drifted — his cell must not claim a sleeper: %+v", cells[1])
+	}
 }

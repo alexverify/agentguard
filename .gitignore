@@ -23,3 +23,6 @@ coverage.*
 
 # Local-only working docs (specs/plans); never committed
 docs/superpowers/
+
+# Generated demo recordings (regenerate rather than version them)
+/docs/assets/*.mp4
