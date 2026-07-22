@@ -506,6 +506,8 @@ func agentName(tool string) string {
 	switch tool {
 	case "claude-code":
 		return "Claude Code"
+	case "claude-desktop":
+		return "Claude Desktop"
 	case "cursor":
 		return "Cursor"
 	case "gemini":
@@ -518,6 +520,12 @@ func agentName(tool string) string {
 		return "Windsurf"
 	case "copilot-cli":
 		return "GitHub Copilot"
+	case "vscode":
+		return "VS Code"
+	case "zed":
+		return "Zed"
+	case "kiro":
+		return "Kiro"
 	default:
 		return tool
 	}
