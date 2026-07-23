@@ -48,6 +48,8 @@ import {
   isWritable,
   isTeamMode,
   accountAll,
+  runAction,
+  type ActionKind,
   type PolicyLists,
   type PolicyMute,
 } from "@/lib/actions"
@@ -295,7 +297,9 @@ export function Dashboard() {
 
       {/* Tab content */}
       <div className="mt-6">
-        {tab === "changes" && <ChangesPanel artifacts={changedArtifacts} onSelect={setSelected} />}
+        {tab === "changes" && (
+          <ChangesPanel artifacts={changedArtifacts} live={live} onSelect={setSelected} onChanged={reload} />
+        )}
         {tab === "activity" && <ActivityPanel />}
         {tab === "inventory" && (
           <InventoryPanel
@@ -665,10 +669,14 @@ function DriftPanel({ drifted: rows, updated }: { drifted: Artifact[]; updated: 
 
 function ChangesPanel({
   artifacts: rows,
+  live,
   onSelect,
+  onChanged,
 }: {
   artifacts: Artifact[]
+  live: boolean
   onSelect: (a: Artifact) => void
+  onChanged: () => void
 }) {
   if (rows.length === 0) {
     return (
@@ -690,32 +698,138 @@ function ChangesPanel({
         {rows.length} artifact{rows.length > 1 ? "s" : ""} to review since the lockfile.
       </p>
       {sorted.map((a) => (
-        <button
-          key={a.id}
-          type="button"
-          onClick={() => onSelect(a)}
-          className="flex w-full flex-col gap-1.5 rounded-lg border border-border bg-card px-4 py-3 text-left transition-colors hover:bg-muted/30"
-        >
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2.5">
-              <FileCode2 className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <span className="font-mono text-sm font-medium text-foreground">{a.name}</span>
-              <span className="font-mono text-xs text-muted-foreground">
-                {a.agent} · {a.kind}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              {a.verdict ? <VerdictBadge verdict={a.verdict} score={a.trust} /> : null}
-              <DriftBadge status={a.drift} approved={a.approval?.status === "approved"} />
-            </div>
-          </div>
-          {a.driftDetail ? (
-            <p className={cn("text-xs", a.drift === "drifted" ? "text-sev-critical" : "text-muted-foreground")}>
-              {a.driftDetail}
-            </p>
-          ) : null}
-        </button>
+        <ChangeRow key={a.id} a={a} live={live} onSelect={onSelect} onChanged={onChanged} />
       ))}
+    </div>
+  )
+}
+
+// capabilityDeltas turns the A2 capability diff into the "+ now reads …" /
+// "+ new egress: …" lines of the change card. Sensitive paths come first —
+// they are the reason someone stops scrolling.
+function capabilityDeltas(a: Artifact): string[] {
+  const c = a.capabilities
+  if (!c) return []
+  const out: string[] = []
+  const sensitive = c.sensitiveAdded ?? []
+  const fs = (c.addedFilesystem ?? []).filter((p) => !sensitive.includes(p))
+  if (sensitive.length > 0) out.push(`+ now reads ${sensitive.join(", ")}`)
+  if (fs.length > 0) out.push(`+ new filesystem access: ${fs.join(", ")}`)
+  if ((c.addedNetwork ?? []).length > 0) out.push(`+ new egress: ${(c.addedNetwork ?? []).join(", ")}`)
+  if (c.execNewlyAdded) out.push(`+ can now execute commands`)
+  return out
+}
+
+function ChangeRow({
+  a,
+  live,
+  onSelect,
+  onChanged,
+}: {
+  a: Artifact
+  live: boolean
+  onSelect: (a: Artifact) => void
+  onChanged: () => void
+}) {
+  const [busy, setBusy] = useState<ActionKind | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const run = (kind: ActionKind, on: boolean) => {
+    setBusy(kind)
+    setError(null)
+    runAction(kind, a.id, on)
+      .then(() => onChanged())
+      .catch((e) => setError(String(e instanceof Error ? e.message : e)))
+      .finally(() => setBusy(null))
+  }
+
+  const deltas = capabilityDeltas(a)
+  const provenanceLevel = a.provenance?.level ?? 0
+  const btn =
+    "inline-flex items-center justify-center rounded-md border px-2.5 py-1 font-mono text-[11px] transition-colors disabled:opacity-50"
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => onSelect(a)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault()
+          onSelect(a)
+        }
+      }}
+      className="flex w-full cursor-pointer flex-col gap-1.5 rounded-lg border border-border bg-card px-4 py-3 text-left transition-colors hover:bg-muted/30"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2.5">
+          <FileCode2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <span className="font-mono text-sm font-medium text-foreground">{a.name}</span>
+          <span className="font-mono text-xs text-muted-foreground">
+            {a.agent} · {a.kind}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          {a.verdict ? <VerdictBadge verdict={a.verdict} score={a.trust} /> : null}
+          <DriftBadge status={a.drift} approved={a.approval?.status === "approved"} />
+        </div>
+      </div>
+      {a.driftDetail ? (
+        <p className={cn("text-xs", a.drift === "drifted" ? "text-sev-critical" : "text-muted-foreground")}>
+          {a.driftDetail}
+        </p>
+      ) : null}
+      {deltas.length > 0 ? (
+        <div className="flex flex-col gap-0.5">
+          {deltas.map((d) => (
+            <p key={d} className="font-mono text-xs text-sev-high">
+              {d}
+            </p>
+          ))}
+        </div>
+      ) : null}
+      {a.drift === "new" ? (
+        <p className="font-mono text-xs text-muted-foreground">
+          publisher: {a.source || "unknown"}{" "}
+          {provenanceLevel > 0 ? `(provenance ${provenanceLevel}/${a.provenance?.max})` : "(unverified)"}
+        </p>
+      ) : null}
+      {live ? (
+        <div className="mt-1 flex flex-wrap items-center gap-2" onClick={(e) => e.stopPropagation()}>
+          <button
+            type="button"
+            onClick={() => onSelect(a)}
+            className={cn(btn, "border-border text-muted-foreground hover:bg-muted/40 hover:text-foreground")}
+          >
+            Diff
+          </button>
+          <button
+            type="button"
+            disabled={busy !== null}
+            onClick={() => run("approve", true)}
+            className={cn(btn, "border-ok/40 text-ok hover:bg-ok/10")}
+          >
+            {busy === "approve" ? "…" : "Approve"}
+          </button>
+          <button
+            type="button"
+            disabled={busy !== null}
+            onClick={() => run("quarantine", !a.quarantined)}
+            className={cn(btn, "border-sev-critical/40 text-sev-critical hover:bg-sev-critical/10")}
+          >
+            {busy === "quarantine" ? "…" : a.quarantined ? "Lift quarantine" : "Quarantine"}
+          </button>
+          <button
+            type="button"
+            disabled={busy !== null}
+            onClick={() => run("freeze", !a.frozen)}
+            className={cn(btn, "border-border text-muted-foreground hover:bg-muted/40 hover:text-foreground")}
+          >
+            {busy === "freeze" ? "…" : a.frozen ? "Unfreeze" : `Freeze @ ${a.version || a.hash.slice(0, 8)}`}
+          </button>
+          {error ? <span className="font-mono text-[11px] text-sev-critical">{error}</span> : null}
+        </div>
+      ) : null}
     </div>
   )
 }
