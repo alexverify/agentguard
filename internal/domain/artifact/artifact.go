@@ -55,6 +55,12 @@ const (
 	SourceLocal     SourceKind = "local"     // anchor: directory content hash
 	SourceInline    SourceKind = "inline"    // anchor: literal content hash
 	SourceContainer SourceKind = "container" // anchor: OCI image digest + cosign signature
+	// SourceRegistry is a remote catalog entry (an app store listing). The code
+	// behind it is never obtained, so the anchor is the canonical digest of the
+	// published manifest plus the TLS SPKI pin of its distribution host. This is
+	// the weakest anchor eyebrow issues: it proves what a registry published,
+	// not what the listing actually runs.
+	SourceRegistry SourceKind = "registry"
 )
 
 // Source captures the declaration of where an artifact comes from, plus the

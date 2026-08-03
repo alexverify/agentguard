@@ -136,7 +136,7 @@ func (a *App) printGateFailures(res fleet.GateResult) {
 // inventory joined with the lockfile (reusing the dashboard's drift/verdict
 // interpretation). Shared by export (write to a dir) and push (send to a server).
 func (a *App) buildSnapshot(ctx context.Context, c commonFlags, owner string) (fleet.Snapshot, error) {
-	current, err := a.scanService(*c.json, *c.rules).Build(ctx, a.scopes(*c.path, *c.global))
+	current, err := a.scanService(*c.json, *c.rules).Build(ctx, a.scopes(*c.path, *c.global, *c.registry))
 	if err != nil {
 		return fleet.Snapshot{}, err
 	}

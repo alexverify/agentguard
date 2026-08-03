@@ -32,6 +32,7 @@ type commonFlags struct {
 	lockfile *string
 	json     *bool
 	rules    *string
+	registry *string
 }
 
 func bindCommon(fs *flag.FlagSet) commonFlags {
@@ -41,6 +42,10 @@ func bindCommon(fs *flag.FlagSet) commonFlags {
 		lockfile: fs.String("lockfile", "eyebrowlock.json", "lockfile path"),
 		json:     fs.Bool("json", false, "machine-readable JSON output"),
 		rules:    fs.String("rules", "rules", "semgrep rules pack dir (optional accelerator; ignored when absent)"),
+		// Opt-in: unlike the local scopes, reading a catalog makes network
+		// calls. verify accepts it too — a registry scanned but not verified
+		// would read as wholesale removal on the next run.
+		registry: fs.String("registry", "", "also scan a remote app registry by base URL (e.g. https://www.agentos.services)"),
 	}
 }
 
@@ -62,7 +67,7 @@ func (a *App) runScan(ctx context.Context, args []string) int {
 
 	svc := a.capturingScanService(*c.json, *c.rules, *c.path)
 	lf, err := svc.Run(ctx, scan.Options{
-		Scopes:       a.scopes(*c.path, *c.global),
+		Scopes:       a.scopes(*c.path, *c.global, *c.registry),
 		LockfilePath: *c.lockfile,
 	}, a.Stdout)
 	if err != nil {
@@ -105,7 +110,7 @@ func (a *App) runVerify(ctx context.Context, args []string) int {
 
 	svc := a.verifyService(*c.json, *c.rules, verifier)
 	res, err := svc.Run(ctx, verify.Options{
-		Scopes:       a.scopes(*c.path, *c.global),
+		Scopes:       a.scopes(*c.path, *c.global, *c.registry),
 		LockfilePath: *c.lockfile,
 		CI:           *ci,
 		Policy:       pol,
@@ -150,7 +155,7 @@ func (a *App) runDiff(ctx context.Context, args []string) int {
 	}
 	svc := a.verifyService(*c.json, *c.rules, nil)
 	_, err := svc.Run(ctx, verify.Options{
-		Scopes:       a.scopes(*c.path, *c.global),
+		Scopes:       a.scopes(*c.path, *c.global, *c.registry),
 		LockfilePath: *c.lockfile,
 	}, a.Stdout)
 	if err != nil {
@@ -171,7 +176,7 @@ func (a *App) runDigest(ctx context.Context, args []string) int {
 		return ExitUsage
 	}
 
-	current, err := a.scanService(*c.json, *c.rules).Build(ctx, a.scopes(*c.path, *c.global))
+	current, err := a.scanService(*c.json, *c.rules).Build(ctx, a.scopes(*c.path, *c.global, *c.registry))
 	if err != nil {
 		return a.fail("digest", err)
 	}
@@ -363,7 +368,7 @@ func (a *App) runList(ctx context.Context, args []string) int {
 		return ExitUsage
 	}
 	svc := a.scanService(*c.json, *c.rules)
-	lf, err := svc.Build(ctx, a.scopes(*c.path, *c.global))
+	lf, err := svc.Build(ctx, a.scopes(*c.path, *c.global, *c.registry))
 	if err != nil {
 		return a.fail("list", err)
 	}

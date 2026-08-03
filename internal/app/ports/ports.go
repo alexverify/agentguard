@@ -35,15 +35,17 @@ var (
 
 // Scope identifies where to look for artifacts.
 type Scope struct {
-	Kind string // "global" | "project"
-	Path string // project root for project scope; ignored for global
+	Kind string // "global" | "project" | "registry"
+	Path string // project root, or registry base URL; ignored for global
 }
 
 // String renders the scope in the canonical form stored on artifacts
-// ("global" or "project:<path>").
+// ("global", "project:<path>", or "registry:<url>"). Any scope carrying a path
+// is qualified by it, so two projects — or two registries — never collapse onto
+// one scope string and alias their artifact IDs together.
 func (s Scope) String() string {
-	if s.Kind == "project" {
-		return "project:" + s.Path
+	if s.Path != "" {
+		return s.Kind + ":" + s.Path
 	}
 	return s.Kind
 }

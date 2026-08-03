@@ -70,7 +70,7 @@ func (a *App) runDashboard(ctx context.Context, args []string) int {
 		*snapshotDir = a.snapshotDir(*c.path)
 	}
 
-	scopes := a.scopes(*c.path, *c.global)
+	scopes := a.scopes(*c.path, *c.global, *c.registry)
 	builder := a.capturingScanService(false, *c.rules, *c.path)
 	store := lockstore.New()
 	// The keyring (committed trusted-keys + personal) verifies approval

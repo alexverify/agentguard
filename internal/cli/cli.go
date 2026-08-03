@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/alexverify/eyebrow/internal/adapters/analyze"
@@ -167,13 +168,18 @@ func (a *App) fail(cmd string, err error) int {
 	return ExitError
 }
 
-// scopes builds the scan scopes from the common flags.
-func (a *App) scopes(path string, global bool) []ports.Scope {
+// scopes builds the scan scopes from the common flags. A non-empty registry
+// adds a remote catalog to the scan; it is opt-in because, unlike the local
+// scopes, reading it makes network calls.
+func (a *App) scopes(path string, global bool, registry string) []ports.Scope {
 	var sc []ports.Scope
 	if global {
 		sc = append(sc, ports.Scope{Kind: "global"})
 	}
 	sc = append(sc, ports.Scope{Kind: "project", Path: path})
+	if registry != "" {
+		sc = append(sc, ports.Scope{Kind: "registry", Path: strings.TrimSuffix(registry, "/")})
+	}
 	return sc
 }
 

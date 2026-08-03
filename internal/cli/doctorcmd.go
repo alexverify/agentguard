@@ -65,7 +65,7 @@ func (a *App) runDoctor(ctx context.Context, args []string) int {
 
 // doctorTools reports how much of the attack surface discovery can see in scope.
 func (a *App) doctorTools(ctx context.Context, path string, global bool, r doctor.Report) doctor.Report {
-	arts, err := discover.Default().Discover(ctx, a.scopes(path, global))
+	arts, err := discover.Default().Discover(ctx, a.scopes(path, global, ""))
 	if err != nil {
 		return r.Add("tools", doctor.StatusWarn, "discovery failed: "+err.Error())
 	}
