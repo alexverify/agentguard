@@ -4,6 +4,7 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from "react"
 import { ArrowLeft, ChevronUp, ChevronDown, ShieldCheck } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { flagSafe } from "@/lib/actions"
+import { CodeSkeleton } from "@/components/dashboard/skeletons"
 
 // CodeTarget identifies the file to open and where to anchor it. highlights are
 // the finding lines to mark; focusLine is the line scrolled into view on open.
@@ -184,7 +185,7 @@ export function CodeView({
       <div className="flex flex-1 overflow-hidden">
         <div className="flex-1 overflow-auto">
         {content === null && error === null ? (
-            <p className="p-4 font-mono text-xs text-muted-foreground">loading…</p>
+            <CodeSkeleton />
           ) : error !== null ? (
             <SnippetFallback target={target} error={error} />
           ) : (

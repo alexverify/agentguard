@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { X, FileCode2, ShieldCheck, ShieldAlert, Network, FolderTree, Terminal, EyeOff, GitCompareArrows, Clock, AlarmClock, History, Wrench } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { Skeleton } from "@/components/ui/skeleton"
 import { KIND_LABELS, PATTERN_LABELS, type Artifact, type LineDiff } from "@/lib/scan-data"
 import { SeverityBadge, DriftBadge, VerdictBadge, LivenessBadge, ReachBadge, ReputationBadge, SafeBadge } from "@/components/dashboard/badges"
 import { runAction, muteFinding, allowEgress, type ActionKind } from "@/lib/actions"
@@ -928,7 +929,15 @@ function Activity({ name, live }: { name: string; live: boolean }) {
         <EgressAllowlist server={name} hosts={egressHosts} onChanged={() => setReload((n) => n + 1)} />
       ) : null}
       {events === null ? (
-        <p className="text-xs text-muted-foreground">Loading…</p>
+        <div className="flex flex-col gap-2 py-1">
+          {Array.from({ length: 4 }, (_, i) => (
+            <div key={i} className="flex items-baseline gap-3">
+              <Skeleton className="h-3 w-28 shrink-0" />
+              <Skeleton className={`h-3 ${i % 2 === 0 ? "w-2/3" : "w-1/2"}`} />
+              <Skeleton className="ml-auto h-3 w-8 shrink-0" />
+            </div>
+          ))}
+        </div>
       ) : events.length === 0 ? (
         <p className="text-xs text-muted-foreground">
           No audit events. Wrap this server with <span className="font-mono">eyebrow wrap</span> to record tool

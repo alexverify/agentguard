@@ -55,6 +55,14 @@ import {
 } from "@/lib/actions"
 import { TeamModeContext } from "@/components/dashboard/team-mode"
 import { StatCard } from "@/components/dashboard/stat-card"
+import {
+  StatCardSkeleton,
+  ListRowsSkeleton,
+  TableSkeleton,
+  FeedSkeleton,
+  PolicySkeleton,
+  FleetSkeleton,
+} from "@/components/dashboard/skeletons"
 import { SeverityBadge, DriftBadge, VerdictBadge, LivenessBadge, ReachBadge, SafeBadge } from "@/components/dashboard/badges"
 import { ArtifactDrawer } from "@/components/dashboard/artifact-drawer"
 import { CodeView, type CodeTarget } from "@/components/dashboard/code-view"
@@ -177,11 +185,14 @@ export function Dashboard() {
             Local Scan
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {loading
-              ? "scanning…"
-              : `${artifacts.length} artifacts inventoried across ${agents.length} agents`}{" "}
-            ·{" "}
-            <span className="font-mono text-foreground">{live ? "live scan" : "demo data"}</span>
+            {loading ? (
+              "scanning…"
+            ) : (
+              <>
+                {artifacts.length} artifacts inventoried across {agents.length} agents ·{" "}
+                <span className="font-mono text-foreground">{live ? "live scan" : "demo data"}</span>
+              </>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 font-mono text-xs text-muted-foreground">
@@ -254,6 +265,13 @@ export function Dashboard() {
       <TrendSparkline />
 
       {/* Summary stats */}
+      {loading ? (
+        <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {Array.from({ length: 4 }, (_, i) => (
+            <StatCardSkeleton key={i} />
+          ))}
+        </div>
+      ) : (
       <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard
           label="Quarantine"
@@ -275,6 +293,7 @@ export function Dashboard() {
         />
         <StatCard label="Trusted" value={verdicts.trusted} hint="match audit, verifiable" accent="ok" />
       </div>
+      )}
 
       {/* Tabs */}
       <div className="mt-8 flex flex-wrap gap-1 border-b border-border">
@@ -297,11 +316,15 @@ export function Dashboard() {
 
       {/* Tab content */}
       <div className="mt-6">
-        {tab === "changes" && (
-          <ChangesPanel artifacts={changedArtifacts} live={live} onSelect={setSelected} onChanged={reload} />
-        )}
+        {tab === "changes" &&
+          (loading ? (
+            <ListRowsSkeleton />
+          ) : (
+            <ChangesPanel artifacts={changedArtifacts} live={live} onSelect={setSelected} onChanged={reload} />
+          ))}
         {tab === "activity" && <ActivityPanel />}
-        {tab === "inventory" && (
+        {tab === "inventory" && loading && <TableSkeleton />}
+        {tab === "inventory" && !loading && (
           <InventoryPanel
             artifacts={filteredArtifacts}
             agents={agents}
@@ -314,8 +337,10 @@ export function Dashboard() {
             onSelect={setSelected}
           />
         )}
-        {tab === "findings" && <FindingsPanel findings={findings} onViewSource={setCodeTarget} />}
-        {tab === "drift" && <DriftPanel drifted={driftedArtifacts} updated={updatedArtifacts} />}
+        {tab === "findings" &&
+          (loading ? <ListRowsSkeleton /> : <FindingsPanel findings={findings} onViewSource={setCodeTarget} />)}
+        {tab === "drift" &&
+          (loading ? <ListRowsSkeleton /> : <DriftPanel drifted={driftedArtifacts} updated={updatedArtifacts} />)}
         {tab === "fleet" && <FleetPanel live={live} />}
         {tab === "alerts" && <AlertsPanel />}
         {tab === "policy" && <PolicyPanel live={live} />}
@@ -927,7 +952,7 @@ function PolicyPanel({ live }: { live: boolean }) {
       </div>
     )
   }
-  if (!lists) return <p className="text-sm text-muted-foreground">Loading policy…</p>
+  if (!lists) return <PolicySkeleton />
 
   const save = () => {
     setSaving(true)
@@ -1131,7 +1156,7 @@ function AlertsPanel() {
   }, [])
 
   if (alerts === null) {
-    return <p className="text-sm text-muted-foreground">Loading alerts…</p>
+    return <ListRowsSkeleton rows={3} />
   }
   if (alerts.length === 0) {
     return (
@@ -1202,7 +1227,7 @@ function FleetPanel({ live }: { live: boolean }) {
   }, [])
 
   if (report === null) {
-    return <p className="text-sm text-muted-foreground">Loading fleet…</p>
+    return <FleetSkeleton />
   }
 
   const exposed = report.exposures.filter((e) => e.drifted > 0 || e.quarantine > 0)
@@ -1473,7 +1498,7 @@ function ActivityPanel() {
   }, [])
 
   if (events === null) {
-    return <p className="text-sm text-muted-foreground">Loading activity…</p>
+    return <FeedSkeleton />
   }
   if (events.length === 0) {
     return (
