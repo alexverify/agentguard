@@ -44,7 +44,8 @@ func (m *Multi) Discover(ctx context.Context, scopes []ports.Scope) ([]artifact.
 
 // Default returns discoverers for every supported tool: Claude Code, Claude
 // Desktop, Cursor, Gemini, OpenCode, Codex, Windsurf, GitHub Copilot CLI, and
-// Visual Studio Code, Zed, and Kiro — plus the AgentOS registry, which is inert
+// Visual Studio Code, Zed, and Kiro — plus AEON (inert unless a scanned project
+// root carries an aeon.yml marker) and the AgentOS registry, which is inert
 // unless a "registry" scope is supplied, so ordinary local scans stay offline.
 func Default() *Multi {
 	return NewMulti(
@@ -60,5 +61,6 @@ func Default() *Multi {
 		NewVSCode(),
 		NewZed(),
 		NewKiro(),
+		NewAeon(),
 	)
 }
