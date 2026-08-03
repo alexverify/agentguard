@@ -31,6 +31,7 @@ func NewRouter() *Router {
 		artifact.SourceGit:       NewGit(runner),
 		artifact.SourceURL:       NewURL(TLSCertFetcher{}),
 		artifact.SourceContainer: NewContainer(runner),
+		artifact.SourceRegistry:  NewRegistry(),
 	}}
 }
 
