@@ -60,7 +60,13 @@ func (Local) Resolve(_ context.Context, src artifact.Source) (ports.Resolution, 
 	if _, err := os.Stat(abs); err != nil {
 		return ports.Resolution{}, fmt.Errorf("local source %q: %w", abs, err)
 	}
-	return ports.Resolution{LocalPath: abs, PinnedRef: abs}, nil
+	// LocalPath is absolute so the hasher can read files regardless of cwd, but
+	// PinnedRef keeps the ref exactly as discovered. A committed lockfile is
+	// compared across machines (dev vs CI); absolutizing the ref here would make
+	// every local artifact read as version_changed drift when the checkout lives
+	// at a different path. Scanned with a relative --path, the ref stays relative
+	// and portable; an already-absolute ref is preserved as-is.
+	return ports.Resolution{LocalPath: abs, PinnedRef: path}, nil
 }
 
 // Inline content-addresses literal text (hooks, rules, context). By convention
