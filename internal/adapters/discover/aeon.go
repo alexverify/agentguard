@@ -1,9 +1,13 @@
 package discover
 
 import (
+	"bufio"
 	"context"
+	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
+	"sort"
 
 	"github.com/alexverify/eyebrow/internal/app/ports"
 	"github.com/alexverify/eyebrow/internal/domain/artifact"
@@ -34,7 +38,57 @@ func (a *Aeon) Discover(_ context.Context, scopes []ports.Scope) ([]artifact.Art
 		if _, err := os.Stat(filepath.Join(sc.Path, "aeon.yml")); err != nil {
 			continue // not an AEON repo — stay inert
 		}
-		out = append(out, skillsFromDir(a.Tool(), filepath.Join(sc.Path, "skills"), sc.String())...)
+		skills := skillsFromDir(a.Tool(), filepath.Join(sc.Path, "skills"), sc.String())
+		for i := range skills {
+			skills[i].Capabilities = capabilitiesFromSkill(skills[i].DiscoveredFrom)
+		}
+		out = append(out, skills...)
 	}
 	return out, nil
+}
+
+// callLine matches a line that actually performs network egress — AEON mandates
+// ./secretcurl for auth'd APIs and curl/WebFetch for public ones. Hosts are
+// harvested only from these lines, so a URL that merely appears in prose (a doc
+// link) does not inflate the skill's declared reach and trip the
+// capability-expansion gate on a benign edit.
+var callLine = regexp.MustCompile(`(?i)\b(secretcurl|curl|wget|webfetch)\b`)
+
+var urlHost = regexp.MustCompile(`https?://[^\s"'` + "`" + `)]+`)
+
+// capabilitiesFromSkill fingerprints a skill's egress: the set of hosts it
+// reaches from a network-call line. This is the security-relevant capability for
+// a prose skill — a rug pull adds a new exfiltration endpoint — and it changes
+// far less often than the skill's wording, so gating on its expansion stays
+// low-noise where gating on raw content would not.
+func capabilitiesFromSkill(skillMd string) artifact.Capabilities {
+	f, err := os.Open(skillMd)
+	if err != nil {
+		return artifact.Capabilities{}
+	}
+	defer func() { _ = f.Close() }()
+
+	hosts := map[string]bool{}
+	sc := bufio.NewScanner(f)
+	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	for sc.Scan() {
+		line := sc.Text()
+		if !callLine.MatchString(line) {
+			continue
+		}
+		for _, raw := range urlHost.FindAllString(line, -1) {
+			if u, err := url.Parse(raw); err == nil && u.Host != "" {
+				hosts[u.Host] = true
+			}
+		}
+	}
+	if len(hosts) == 0 {
+		return artifact.Capabilities{}
+	}
+	out := make([]string, 0, len(hosts))
+	for h := range hosts {
+		out = append(out, h)
+	}
+	sort.Strings(out)
+	return artifact.Capabilities{Network: out}
 }

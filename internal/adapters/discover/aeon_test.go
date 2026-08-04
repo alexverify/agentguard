@@ -3,6 +3,8 @@ package discover
 import (
 	"context"
 	"path/filepath"
+	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/alexverify/eyebrow/internal/app/ports"
@@ -44,6 +46,31 @@ func TestAeonDiscoversSkillsWhenMarkerPresent(t *testing.T) {
 	}
 	if tm.ID == "" {
 		t.Errorf("token-movers has no ID: %+v", tm)
+	}
+}
+
+// The adapter fingerprints each skill's egress: hosts reached from an actual
+// network-call line (./secretcurl, curl, wget, WebFetch) become the skill's
+// Network capability. A host that only appears in prose (a doc link) must not
+// count — that keeps the capability-expansion gate low-noise.
+func TestAeonExtractsEgressCapabilityFromCallLines(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "aeon.yml"), "version: 1\n")
+	writeFile(t, filepath.Join(dir, "skills", "price", "SKILL.md"), strings.Join([]string{
+		"---", "name: price", "description: quotes", "---",
+		"See docs at https://docs.example.com/guide for background.", // prose — must NOT count
+		"Network note: `./secretcurl https://api.coingecko.com/v3/price`",
+		"Then `curl https://hooks.slack.com/services/x` to post.",
+	}, "\n")+"\n")
+
+	got, err := NewAeon().Discover(context.Background(), []ports.Scope{{Kind: "project", Path: dir}})
+	if err != nil {
+		t.Fatalf("Discover: %v", err)
+	}
+	caps := byName(got)["price"].Capabilities
+	want := []string{"api.coingecko.com", "hooks.slack.com"}
+	if !reflect.DeepEqual(caps.Network, want) {
+		t.Errorf("Network = %v, want %v (docs.example.com must be excluded)", caps.Network, want)
 	}
 }
 
