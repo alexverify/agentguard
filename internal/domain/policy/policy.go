@@ -16,6 +16,18 @@ type Policy struct {
 	// FailOnSeverity is the lowest severity of a newly introduced finding that
 	// fails the gate (default: high).
 	FailOnSeverity finding.Severity `json:"failOnSeverity,omitempty"`
+	// FailOnCapabilityExpansion fails an artifact that, relative to the lockfile,
+	// gains a capability — a new egress host, exec, or filesystem path. For prose
+	// artifacts (skills) whose wording changes constantly, this is the
+	// security-relevant signal: a rug pull adds reach it wasn't approved for.
+	// Off by default.
+	FailOnCapabilityExpansion bool `json:"failOnCapabilityExpansion,omitempty"`
+	// AllowContentDrift stops a bare content-hash change from failing the gate, so
+	// only policy violations (capability expansion, findings, frozen/quarantine)
+	// decide the outcome. Intended for catalogs of prose artifacts that are edited
+	// routinely; the lockfile still records the hashes for the audit trail. Off by
+	// default — eyebrow's usual contract is that any drift fails.
+	AllowContentDrift bool `json:"allowContentDrift,omitempty"`
 	// IgnoreRules suppresses specific rule IDs (accepted false positives).
 	IgnoreRules []string `json:"ignoreRules,omitempty"`
 	// Mutes suppresses rule IDs like IgnoreRules but records a rationale and the
@@ -116,6 +128,22 @@ func containsAny(haystack string, needles []string) (string, bool) {
 // Evaluate gates the current snapshot against the policy, relative to the
 // locked snapshot. "New" findings are those not already present in locked, so
 // previously accepted issues don't re-fail a build.
+// capabilityExpansionDetail renders the added capabilities for the violation
+// message, e.g. "network: evil.example; exec".
+func capabilityExpansionDetail(d lockfile.CapabilityDiff) string {
+	var parts []string
+	if len(d.NetworkAdded) > 0 {
+		parts = append(parts, "network: "+strings.Join(d.NetworkAdded, ", "))
+	}
+	if d.ExecAdded {
+		parts = append(parts, "exec")
+	}
+	if len(d.FilesystemAdded) > 0 {
+		parts = append(parts, "filesystem: "+strings.Join(d.FilesystemAdded, ", "))
+	}
+	return strings.Join(parts, "; ")
+}
+
 func Evaluate(p Policy, locked, current lockfile.Lockfile) Result {
 	p = p.Normalize()
 
@@ -155,6 +183,28 @@ func Evaluate(p Policy, locked, current lockfile.Lockfile) Result {
 			Severity: af.Severity,
 			Detail:   af.File,
 		})
+	}
+
+	if p.FailOnCapabilityExpansion {
+		lockedByID := make(map[string]lockfile.Entry, len(locked.Artifacts))
+		for _, e := range locked.Artifacts {
+			lockedByID[e.ID] = e
+		}
+		for _, cur := range current.Artifacts {
+			prev, ok := lockedByID[cur.ID]
+			if !ok {
+				continue // a brand-new artifact has no baseline to expand against
+			}
+			d := lockfile.DiffCapabilities(prev.Capabilities, cur.Capabilities)
+			if d.Expanded() {
+				violations = append(violations, Violation{
+					Kind:   "capability_expanded",
+					ID:     cur.ID,
+					Name:   cur.Name,
+					Detail: capabilityExpansionDetail(d),
+				})
+			}
+		}
 	}
 
 	if p.RequireApproval {

@@ -81,6 +81,13 @@ func (s *Service) Run(ctx context.Context, opts Options, out io.Writer) (Result,
 		if opts.Policy.RequireSignedApproval {
 			pres.Violations = append(pres.Violations, s.approvalViolations(locked)...)
 		}
+		// AllowContentDrift downgrades a bare content change from a hard failure to
+		// a reported-but-passing signal: for a prose catalog the meaningful
+		// failures are the policy violations (capability expansion, findings,
+		// frozen/quarantine), which Evaluate has already collected.
+		if opts.Policy.AllowContentDrift {
+			ok = true
+		}
 		if !pres.OK() {
 			ok = false
 		}

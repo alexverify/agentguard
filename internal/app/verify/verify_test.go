@@ -12,6 +12,7 @@ import (
 	"github.com/alexverify/eyebrow/internal/app/verify"
 	"github.com/alexverify/eyebrow/internal/domain/artifact"
 	"github.com/alexverify/eyebrow/internal/domain/finding"
+	"github.com/alexverify/eyebrow/internal/domain/policy"
 )
 
 func mcp(name string) artifact.Artifact {
@@ -93,6 +94,29 @@ func TestVerifyDetectsContentDrift(t *testing.T) {
 	}
 	if res.OK || !res.Diff.HasDrift() {
 		t.Fatalf("expected drift, got %+v", res)
+	}
+}
+
+// With AllowContentDrift, a bare content-hash change in CI must NOT fail the
+// gate — only policy violations decide. This is the prose-catalog contract
+// (skills edited routinely) where content drift alone is not a security event.
+func TestVerifyCIAllowsContentDriftWhenPolicySaysSo(t *testing.T) {
+	svc, store := harness(t, "sha256-b", nil) // hashes differently from the lock
+	seed(t, store, "sha256-a", nil)
+
+	res, err := svc.Run(context.Background(), verify.Options{
+		LockfilePath: "eyebrowlock.json",
+		CI:           true,
+		Policy:       policy.Policy{AllowContentDrift: true},
+	}, nil)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if !res.Diff.HasDrift() {
+		t.Fatal("drift should still be detected and reported")
+	}
+	if !res.OK {
+		t.Fatalf("content drift must not fail the gate under AllowContentDrift, got %+v", res.Policy.Violations)
 	}
 }
 

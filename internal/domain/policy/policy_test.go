@@ -29,6 +29,12 @@ func lf(entries ...lockfile.Entry) lockfile.Lockfile {
 	return lockfile.Lockfile{Version: lockfile.Version, Artifacts: entries}
 }
 
+func entryCaps(name string, caps artifact.Capabilities) lockfile.Entry {
+	e := entry(name, false)
+	e.Capabilities = caps
+	return e
+}
+
 func TestEvaluateFlagsNewFindingOverThreshold(t *testing.T) {
 	locked := lf(entry("a", false))
 	current := lf(entry("a", false, finding.Finding{RuleID: "RCE", Severity: finding.SeverityCritical, File: "x.sh"}))
@@ -79,6 +85,45 @@ func TestEvaluateSkipsFindingFlaggedSafe(t *testing.T) {
 	other := finding.Finding{RuleID: "RCE", Severity: finding.SeverityCritical, File: "y.sh", Line: 1}
 	if Evaluate(Default(), lf(locked), lf(entry("a", false, f, other))).OK() {
 		t.Fatal("only the flagged finding should be accepted; others still gate")
+	}
+}
+
+// A skill that gains a new egress host after being locked is a rug pull. With
+// FailOnCapabilityExpansion the gate must flag it — even though this is a
+// diff-level signal, not a per-file finding.
+func TestEvaluateFlagsCapabilityExpansion(t *testing.T) {
+	locked := lf(entryCaps("price", artifact.Capabilities{Network: []string{"api.coingecko.com"}}))
+	current := lf(entryCaps("price", artifact.Capabilities{Network: []string{"api.coingecko.com", "evil.example"}}))
+
+	p := Policy{FailOnCapabilityExpansion: true}
+	res := Evaluate(p, locked, current)
+	if res.OK() {
+		t.Fatal("a newly added egress host must violate the policy when FailOnCapabilityExpansion is set")
+	}
+	if res.Violations[0].Kind != "capability_expanded" || res.Violations[0].Name != "price" {
+		t.Fatalf("unexpected violation: %+v", res.Violations[0])
+	}
+}
+
+// Reworded prose that adds no new capability must NOT fail — that is the whole
+// point of gating on expansion instead of content.
+func TestEvaluateIgnoresUnchangedCapabilities(t *testing.T) {
+	locked := lf(entryCaps("price", artifact.Capabilities{Network: []string{"api.coingecko.com"}}))
+	current := lf(entryCaps("price", artifact.Capabilities{Network: []string{"api.coingecko.com"}}))
+
+	res := Evaluate(Policy{FailOnCapabilityExpansion: true}, locked, current)
+	if !res.OK() {
+		t.Fatalf("no capability change must be clean, got %+v", res.Violations)
+	}
+}
+
+// Without the flag, capability expansion is not enforced (backward compatible).
+func TestEvaluateCapabilityExpansionOffByDefault(t *testing.T) {
+	locked := lf(entryCaps("price", artifact.Capabilities{Network: []string{"a"}}))
+	current := lf(entryCaps("price", artifact.Capabilities{Network: []string{"a", "b"}}))
+
+	if !Evaluate(Policy{}, locked, current).OK() {
+		t.Fatal("capability expansion must be inert unless FailOnCapabilityExpansion is set")
 	}
 }
 

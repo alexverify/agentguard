@@ -128,6 +128,8 @@ func (a *App) runVerify(ctx context.Context, args []string) int {
 			fmt.Fprintf(a.Stdout, "policy: quarantined artifact still installed — %s (%s)\n", v.Name, v.ID)
 		case "frozen_drift":
 			fmt.Fprintf(a.Stdout, "policy: frozen artifact changed (%s) — %s (%s)\n", v.Detail, v.Name, v.ID)
+		case "capability_expanded":
+			_, _ = fmt.Fprintf(a.Stdout, "policy: capability expansion — %s gained %s (%s)\n", v.Name, v.Detail, v.ID)
 		case "blocked_publisher":
 			fmt.Fprintf(a.Stdout, "policy: blocked publisher %q — %s (%s)\n", v.Detail, v.Name, v.ID)
 		case "blocked_artifact":
