@@ -34,3 +34,10 @@ updates:
       web:
         patterns:
           - "*"
+    ignore:
+      # Next.js drives the TypeScript compiler API directly and does not support
+      # TS majors beyond what it ships against (TS 7 fails the build:
+      # "does not provide the compiler API required by Next.js"). Take TS majors
+      # deliberately, alongside a Next upgrade — not via the weekly group.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
