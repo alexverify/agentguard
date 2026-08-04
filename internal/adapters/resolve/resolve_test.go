@@ -3,6 +3,7 @@ package resolve
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -62,6 +63,30 @@ func TestLocalResolve(t *testing.T) {
 	abs, _ := filepath.Abs(dir)
 	if res.LocalPath != abs || res.PinnedRef != abs {
 		t.Errorf("LocalPath/PinnedRef = %q/%q, want %q", res.LocalPath, res.PinnedRef, abs)
+	}
+}
+
+// A relative ref must stay relative in PinnedRef so a committed lockfile is
+// portable across machines (dev vs CI checkout paths); only LocalPath is
+// absolutized, for the hasher.
+func TestLocalResolveKeepsRelativeRefPortable(t *testing.T) {
+	dir := t.TempDir()
+	sub := filepath.Join(dir, "skills", "foo")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(dir) // Go 1.25: changes cwd for the test and restores it automatically
+
+	rel := filepath.Join("skills", "foo")
+	res, err := Local{}.Resolve(context.Background(), artifact.Source{Ref: rel})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.PinnedRef != rel {
+		t.Errorf("PinnedRef = %q, want portable relative %q", res.PinnedRef, rel)
+	}
+	if !filepath.IsAbs(res.LocalPath) {
+		t.Errorf("LocalPath = %q, want absolute for hashing", res.LocalPath)
 	}
 }
 
