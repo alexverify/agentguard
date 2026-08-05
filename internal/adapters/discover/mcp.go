@@ -111,10 +111,15 @@ func skillsFromDir(tool, root, scope string) []artifact.Artifact {
 	}
 	var out []artifact.Artifact
 	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
 		dir := filepath.Join(root, e.Name())
+		if !e.IsDir() {
+			// A symlinked skill directory (e.g. skills/pay -> ../.agents/
+			// skills/pay) reports as not-a-dir here; resolve before deciding.
+			info, err := os.Stat(dir)
+			if err != nil || !info.IsDir() {
+				continue
+			}
+		}
 		if _, err := os.Stat(filepath.Join(dir, "SKILL.md")); err != nil {
 			continue
 		}

@@ -62,5 +62,6 @@ func Default() *Multi {
 		NewZed(),
 		NewKiro(),
 		NewAeon(),
+		NewSkillsLock(),
 	)
 }
