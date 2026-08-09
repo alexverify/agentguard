@@ -9,6 +9,94 @@ Exit codes are part of the CLI contract and are covered by SemVer:
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-08-05
+
+### Added
+
+- **skills-lock discovery**: repos that publish a catalog at
+  `skills/<slug>/SKILL.md` and declare it with a root `skills-lock.json`
+  (dexter-mcp, solana-foundation/pay) are now discovered as a source. The
+  adapter is gated on that marker so a plain `skills/` directory elsewhere is
+  never picked up, and it stays inert when `aeon.yml` is also present so no
+  skill is reported twice.
+
+### Fixed
+
+- Skill directories reached through a symlink (e.g. `skills/pay ->
+  ../.agents/skills/pay`) were silently skipped during discovery; the entry is
+  now resolved before it is rejected.
+
+### Internal
+
+- Dashboard web lockfile back to zero `npm audit` advisories; TypeScript
+  majors held out of the weekly dependency group (Next 16 does not support
+  TS 7).
+
+## [0.4.1] - 2026-08-04
+
+### Added
+
+- **Registry scanning** (opt-in): `--registry <base-url>` adds a remote
+  catalog to the scan as a new `registry` scope — off by default because,
+  unlike the local scopes, reading it makes network calls. The AgentOS
+  Appstore is the first adapter.
+- **Listing assessment rules**: a registry exposes what a publisher
+  *declared*, never the code that runs, so the rules judge the declaration —
+  `REGISTRY-ENTRYPOINT-UNPINNABLE` (no integrity anchor for what executes),
+  `REGISTRY-NO-SOURCE`, `REGISTRY-NO-CAPABILITY-DECL` (commands exposed with
+  no permissions or secrets declared), `REGISTRY-UNVERIFIED-PUBLISHER`.
+- **AEON discovery**: AEON agent repos keep skills at
+  `skills/<slug>/SKILL.md` rather than under `.claude/skills`, so a scan of a
+  checkout previously saw almost nothing. Gated on the `aeon.yml` marker. A
+  skill's declared egress is fingerprinted as a network capability.
+- **Policy — `failOnCapabilityExpansion`**: fails an artifact that, relative
+  to the lockfile, gains a capability (a new egress host, exec, or filesystem
+  path). For prose artifacts whose wording changes constantly, this is the
+  security-relevant signal: a rug pull adds reach it was not approved for.
+  Off by default. `verify` reports it as `capability_expanded`.
+- **Policy — `allowContentDrift`**: stops a bare content-hash change from
+  failing the gate, leaving the outcome to policy violations alone
+  (capability expansion, findings, frozen/quarantine). For catalogs of prose
+  artifacts edited routinely; the lockfile still records the hashes for the
+  audit trail. Off by default — the usual contract is that any drift fails.
+- **Dashboard**: inline actions on a change row, and the capability delta
+  shown alongside it.
+
+### Fixed
+
+- `resolve` keeps a local source ref portable across machines instead of
+  recording a machine-specific path.
+
+## [0.4.0] - 2026-07-22
+
+### Added
+
+- **Tool-surface audit**: an MCP server's advertised tools are canonically
+  digested from its `tools/list` result, recorded as a `tool_surface` audit
+  event, and diffed per server — so a server that quietly grows a new tool
+  after approval is flagged. Surfaced in `eyebrow audit` and in the dashboard
+  as an advertised-tools drawer section with a change banner.
+- **Sleeper alerts**: an artifact that lies dormant and then executes is a
+  distinct signal from drift. The verdict is computed from the local audit
+  log at snapshot time, carried and aggregated per machine, raised as a
+  fleet-critical alert, named in a blast-radius gate failure, and marked in
+  the fleet report and heatmap (including which machines it woke on).
+- **Discovery**: VS Code MCP servers, Zed context servers, and Kiro MCP
+  servers plus steering files.
+- **Demo mode**: `EYEBROW_DEMO` serves the dashboard an in-memory demo
+  dataset behind the `Deps` seam, with a demo-data badge and chip so it can
+  never be mistaken for live data.
+
+### Fixed
+
+- Dashboard display names for VS Code, Zed, Kiro, and Claude Desktop.
+
+### Internal
+
+- `discover`: MCP artifact assembly split from config parsing.
+- CI installs shellcheck on the macOS runner; the generated demo recording is
+  no longer tracked; dependency bumps clear `npm audit` for the dashboard.
+
 ## [0.3.0] - 2026-07-11
 
 ### Added
@@ -81,7 +169,10 @@ Initial release.
 - **`fleet`**: export/push a machine snapshot and print the team blast-radius
   ("git is the backend").
 
-[Unreleased]: https://github.com/alexverify/eyebrow/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/alexverify/eyebrow/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/alexverify/eyebrow/compare/v0.4.1...v0.4.2
+[0.4.1]: https://github.com/alexverify/eyebrow/compare/v0.4.0...v0.4.1
+[0.4.0]: https://github.com/alexverify/eyebrow/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/alexverify/eyebrow/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/alexverify/eyebrow/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/alexverify/eyebrow/releases/tag/v0.1.0
