@@ -28,6 +28,21 @@ func TestParseExtractsToolCallName(t *testing.T) {
 	}
 }
 
+func TestParseExtractsToolCallNameFromNotification(t *testing.T) {
+	// A tools/call without an id is a notification — the server still
+	// executes it, so the shim must be able to see the tool name.
+	m := Parse([]byte(`{"jsonrpc":"2.0","method":"tools/call","params":{"name":"delete_repo","arguments":{"repo":"x"}}}`))
+	if m.Kind != KindNotification || m.Method != "tools/call" {
+		t.Fatalf("misclassified: %+v", m)
+	}
+	if m.ToolName != "delete_repo" {
+		t.Errorf("ToolName = %q", m.ToolName)
+	}
+	if m.ArgsDigest() == Parse([]byte(`{"jsonrpc":"2.0","method":"tools/call","params":{"name":"delete_repo"}}`)).ArgsDigest() {
+		t.Error("arguments must reach the digest")
+	}
+}
+
 func TestParseClassifiesNotification(t *testing.T) {
 	m := Parse([]byte(`{"jsonrpc":"2.0","method":"notifications/progress","params":{}}`))
 	if m.Kind != KindNotification {

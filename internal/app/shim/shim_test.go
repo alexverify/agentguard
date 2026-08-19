@@ -214,6 +214,46 @@ func TestRelayAllowsAndDeniesSideBySide(t *testing.T) {
 	}
 }
 
+func TestRelayDeniesNotificationToolCallByPolicy(t *testing.T) {
+	// A tools/call sent without an id is a notification. The server would
+	// execute it all the same, so policy must apply. Notifications get no
+	// reply — the shim swallows the line and audits the denial.
+	pol := policy.Policy{MCP: policy.MCPPolicy{Servers: map[string]policy.ToolRule{
+		"github": {DenyTools: []string{"delete_*"}},
+	}}}
+	noteCall := `{"jsonrpc":"2.0","method":"tools/call","params":{"name":"delete_repo","arguments":{}}}` + "\n"
+
+	sink := &apptest.AuditSink{}
+	serverGot, clientGot := runRelayPolicy(t, []string{noteCall}, map[string][]string{}, sink, pol)
+
+	if serverGot != "" {
+		t.Errorf("a denied notification call must never reach the server, got %q", serverGot)
+	}
+	if clientGot != "" {
+		t.Errorf("a notification must not be answered, got %q", clientGot)
+	}
+	for _, e := range sink.Events() {
+		if e.Kind == audit.KindToolCall && e.Status == audit.StatusDenied && e.Tool == "delete_repo" {
+			return
+		}
+	}
+	t.Fatalf("denial must be audited, got %+v", sink.Events())
+}
+
+func TestRelayForwardsAllowedNotificationToolCall(t *testing.T) {
+	pol := policy.Policy{MCP: policy.MCPPolicy{Servers: map[string]policy.ToolRule{
+		"github": {DenyTools: []string{"delete_*"}},
+	}}}
+	noteCall := `{"jsonrpc":"2.0","method":"tools/call","params":{"name":"ping","arguments":{}}}` + "\n"
+
+	sink := &apptest.AuditSink{}
+	serverGot, _ := runRelayPolicy(t, []string{noteCall}, map[string][]string{}, sink, pol)
+
+	if serverGot != noteCall {
+		t.Errorf("an allowed notification call must pass verbatim, got %q", serverGot)
+	}
+}
+
 func TestRelayHandlesOversizedLines(t *testing.T) {
 	big := strings.Repeat("x", 2<<20) // 2 MiB payload
 	bigCall := `{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"upload","arguments":{"data":"` + big + `"}}}` + "\n"

@@ -77,7 +77,9 @@ func (s *Service) Run(ctx context.Context, opts Options, clientIn io.Reader, cli
 	go func() {
 		pump(clientIn, serverIn, func(line []byte) bool {
 			m := jsonrpc.Parse(line)
-			if m.Kind == jsonrpc.KindRequest && m.Method == jsonrpc.MethodToolCall {
+			// Requests and notifications alike: a tools/call with no id
+			// still executes server-side, so policy applies to both.
+			if m.Method == jsonrpc.MethodToolCall {
 				if d := opts.Policy.DecideTool(opts.Server, m.ToolName); !d.Allowed {
 					s.deny(ctx, opts, m, d, toClient)
 					return false // never reaches the server
@@ -166,8 +168,13 @@ func pump(src io.Reader, dst io.Writer, inspect func(line []byte) bool) error {
 
 // deny answers a blocked tools/call with a JSON-RPC error and audits it. The
 // id is echoed back as the raw token from the request, so the client matches
-// the response no matter what id type it used.
+// the response no matter what id type it used. A blocked notification (no id)
+// gets no reply — notifications never do — only the audit event.
 func (s *Service) deny(ctx context.Context, opts Options, m jsonrpc.Message, d policy.Decision, toClient io.Writer) {
+	if m.ID == "" {
+		s.auditDenial(ctx, opts, m, d)
+		return
+	}
 	resp := struct {
 		JSONRPC string          `json:"jsonrpc"`
 		ID      json.RawMessage `json:"id"`
@@ -182,6 +189,10 @@ func (s *Service) deny(ctx context.Context, opts Options, m jsonrpc.Message, d p
 	if line, err := json.Marshal(resp); err == nil {
 		_, _ = toClient.Write(append(line, '\n'))
 	}
+	s.auditDenial(ctx, opts, m, d)
+}
+
+func (s *Service) auditDenial(ctx context.Context, opts Options, m jsonrpc.Message, d policy.Decision) {
 	s.emit(ctx, audit.Event{
 		At: s.deps.Clock.Now(), Session: opts.Session, Server: opts.Server,
 		Kind: audit.KindToolCall, Tool: m.ToolName, ArgsDigest: m.ArgsDigest(),

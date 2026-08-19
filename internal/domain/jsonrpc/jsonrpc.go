@@ -83,7 +83,14 @@ func Parse(line []byte) Message {
 		}
 		return m
 	case w.Method != "":
-		return Message{Kind: KindNotification, Method: w.Method}
+		m := Message{Kind: KindNotification, Method: w.Method}
+		if w.Method == MethodToolCall {
+			// A tools/call without an id still executes server-side —
+			// policy and audit need the tool name and arguments.
+			m.ToolName = w.Params.Name
+			m.ArgsJSON = w.Params.Arguments
+		}
+		return m
 	case id != "" && w.Error != nil:
 		return Message{Kind: KindResponse, ID: id, IsError: true, ErrCode: w.Error.Code}
 	case id != "" && w.Result != nil:
