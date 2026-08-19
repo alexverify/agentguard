@@ -254,6 +254,57 @@ func TestRelayForwardsAllowedNotificationToolCall(t *testing.T) {
 	}
 }
 
+func TestRelayDeniesBatchContainingDeniedToolCall(t *testing.T) {
+	// A JSON-RPC batch used to pass through as an opaque unknown frame — a
+	// denied tools/call could ride inside it straight to the server. A batch
+	// carrying any denied call is swallowed whole; each denied request id is
+	// answered with the usual policy error.
+	pol := policy.Policy{MCP: policy.MCPPolicy{Servers: map[string]policy.ToolRule{
+		"github": {DenyTools: []string{"delete_*"}},
+	}}}
+	batch := `[{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"ping","arguments":{}}},` +
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"delete_repo","arguments":{}}}]` + "\n"
+
+	sink := &apptest.AuditSink{}
+	serverGot, clientGot := runRelayPolicy(t, []string{batch}, map[string][]string{}, sink, pol)
+
+	if serverGot != "" {
+		t.Errorf("a batch with a denied call must never reach the server, got %q", serverGot)
+	}
+	if !strings.Contains(clientGot, `"id":2`) || !strings.Contains(clientGot, "eyebrow policy") {
+		t.Errorf("the denied id must get a JSON-RPC error: %q", clientGot)
+	}
+	for _, e := range sink.Events() {
+		if e.Kind == audit.KindToolCall && e.Status == audit.StatusDenied && e.Tool == "delete_repo" {
+			return
+		}
+	}
+	t.Fatalf("denial must be audited, got %+v", sink.Events())
+}
+
+func TestRelayForwardsAndAuditsAllowedBatch(t *testing.T) {
+	// An all-allowed batch passes byte-for-byte, and calls inside it are
+	// tracked: a batched response completes them into the audit log.
+	batchCall := `[{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"ping","arguments":{}}}]` + "\n"
+	batchResp := `[{"jsonrpc":"2.0","id":1,"result":{"content":[]}}]` + "\n"
+
+	sink := &apptest.AuditSink{}
+	serverGot, clientGot := runRelay(t, []string{batchCall}, map[string][]string{batchCall: {batchResp}}, sink)
+
+	if serverGot != batchCall {
+		t.Errorf("an allowed batch must pass verbatim, got %q", serverGot)
+	}
+	if clientGot != batchResp {
+		t.Errorf("the batched response must pass verbatim, got %q", clientGot)
+	}
+	for _, e := range sink.Events() {
+		if e.Kind == audit.KindToolCall && e.Status == audit.StatusOK && e.Tool == "ping" {
+			return
+		}
+	}
+	t.Fatalf("a batched tool call must be audited, got %+v", sink.Events())
+}
+
 func TestRelayHandlesOversizedLines(t *testing.T) {
 	big := strings.Repeat("x", 2<<20) // 2 MiB payload
 	bigCall := `{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"upload","arguments":{"data":"` + big + `"}}}` + "\n"

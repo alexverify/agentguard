@@ -100,6 +100,22 @@ func Parse(line []byte) Message {
 	}
 }
 
+// ParseBatch splits a JSON-RPC batch line (a JSON array of objects) into its
+// parsed items. ok is false when the line is not an array — batches are the
+// only array-shaped frames on an MCP wire. Parse deliberately keeps returning
+// KindUnknown for them; callers opt into batch inspection with this function.
+func ParseBatch(line []byte) ([]Message, bool) {
+	var raws []json.RawMessage
+	if err := json.Unmarshal(line, &raws); err != nil {
+		return nil, false
+	}
+	out := make([]Message, len(raws))
+	for i, r := range raws {
+		out[i] = Parse(r)
+	}
+	return out, true
+}
+
 // ArgsDigest returns the content digest of a tools/call's raw arguments —
 // the only form in which arguments ever reach the audit trail.
 func (m Message) ArgsDigest() string { return digest.Inline(m.ArgsJSON) }

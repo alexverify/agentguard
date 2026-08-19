@@ -90,6 +90,35 @@ func TestParseToleratesGarbage(t *testing.T) {
 	}
 }
 
+func TestParseBatchSplitsArrayLines(t *testing.T) {
+	items, ok := ParseBatch([]byte(`[{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"run","arguments":{}}},{"jsonrpc":"2.0","method":"notifications/progress"}]`))
+	if !ok {
+		t.Fatal("a JSON array line is a batch")
+	}
+	if len(items) != 2 {
+		t.Fatalf("got %d items, want 2", len(items))
+	}
+	if items[0].Kind != KindRequest || items[0].ToolName != "run" {
+		t.Errorf("items[0] = %+v", items[0])
+	}
+	if items[1].Kind != KindNotification {
+		t.Errorf("items[1] = %+v", items[1])
+	}
+}
+
+func TestParseBatchRejectsNonBatches(t *testing.T) {
+	for _, line := range []string{
+		"",
+		"server v1.2.3 starting up...",
+		`{"jsonrpc":"2.0","id":1,"method":"x"}`,
+		"[not json",
+	} {
+		if _, ok := ParseBatch([]byte(line)); ok {
+			t.Errorf("ParseBatch(%q) accepted a non-batch", line)
+		}
+	}
+}
+
 func TestTrackerCorrelatesCallAndResponse(t *testing.T) {
 	tr := NewTracker()
 	t0 := time.Unix(100, 0)

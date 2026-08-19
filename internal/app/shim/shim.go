@@ -77,6 +77,13 @@ func (s *Service) Run(ctx context.Context, opts Options, clientIn io.Reader, cli
 	go func() {
 		pump(clientIn, serverIn, func(line []byte) bool {
 			m := jsonrpc.Parse(line)
+			if m.Kind == jsonrpc.KindUnknown {
+				// A batch frame carries real messages — a tools/call must
+				// not evade policy by riding inside an array.
+				if items, ok := jsonrpc.ParseBatch(line); ok {
+					return s.inspectClientBatch(ctx, opts, items, observe, toClient)
+				}
+			}
 			// Requests and notifications alike: a tools/call with no id
 			// still executes server-side, so policy applies to both.
 			if m.Method == jsonrpc.MethodToolCall {
@@ -97,37 +104,16 @@ func (s *Service) Run(ctx context.Context, opts Options, clientIn io.Reader, cli
 	// ending means the session is over.
 	err := pump(serverOut, toClient, func(line []byte) bool {
 		m := jsonrpc.Parse(line)
-		if m.Kind == jsonrpc.KindNotification && m.Method == jsonrpc.MethodToolListChanged {
-			s.emit(ctx, audit.Event{
-				At: s.deps.Clock.Now(), Session: opts.Session, Server: opts.Server,
-				Kind: audit.KindToolListChanged,
-			})
-			return true
-		}
-		done := observe(m)
-		if done == nil {
-			return true
-		}
-		switch done.Method {
-		case jsonrpc.MethodToolList:
-			// The advertised tool surface is what the agent reads and obeys —
-			// record it as a digest so a later mutation is provable. Content
-			// (descriptions, schemas) never reaches the log.
-			if sf, ok := toolsurface.Extract(done.ResultJSON); ok {
-				s.emit(ctx, audit.Event{
-					At: s.deps.Clock.Now(), Session: opts.Session, Server: opts.Server,
-					Kind: audit.KindToolSurface, ArgsDigest: sf.Digest(),
-					Detail: fmt.Sprintf("tools=%d", sf.Count()), ToolNames: sf.Names(),
-				})
+		if m.Kind == jsonrpc.KindUnknown {
+			// Batched responses still complete the calls they answer.
+			if items, ok := jsonrpc.ParseBatch(line); ok {
+				for _, it := range items {
+					s.observeServerMessage(ctx, opts, it, observe)
+				}
+				return true
 			}
-		default:
-			s.emit(ctx, audit.Event{
-				At: s.deps.Clock.Now(), Session: opts.Session, Server: opts.Server,
-				Kind: audit.KindToolCall, Tool: done.Tool, ArgsDigest: done.ArgsDigest,
-				DurationMs: done.Duration.Milliseconds(),
-				Status:     status(done), ErrCode: done.ErrCode,
-			})
 		}
+		s.observeServerMessage(ctx, opts, m, observe)
 		return true
 	})
 
@@ -145,6 +131,67 @@ func (s *Service) Run(ctx context.Context, opts Options, clientIn io.Reader, cli
 		})
 	}
 	return err
+}
+
+// inspectClientBatch applies policy to every item of a client batch frame.
+// A batch carrying any denied tools/call is swallowed whole — items cannot be
+// removed without re-serializing the wire, which the relay never does. Each
+// denied item is answered and audited via the usual denial path; an all-
+// allowed batch is forwarded verbatim with its items tracked.
+func (s *Service) inspectClientBatch(ctx context.Context, opts Options, items []jsonrpc.Message, observe func(jsonrpc.Message) *jsonrpc.Completed, toClient io.Writer) bool {
+	allowed := true
+	for _, m := range items {
+		if m.Method != jsonrpc.MethodToolCall {
+			continue
+		}
+		if d := opts.Policy.DecideTool(opts.Server, m.ToolName); !d.Allowed {
+			s.deny(ctx, opts, m, d, toClient)
+			allowed = false
+		}
+	}
+	if !allowed {
+		return false // the whole frame never reaches the server
+	}
+	for _, m := range items {
+		observe(m)
+	}
+	return true
+}
+
+// observeServerMessage runs one server→client message through audit: mid-
+// session tool-list mutations, tool-surface snapshots, and completed calls.
+func (s *Service) observeServerMessage(ctx context.Context, opts Options, m jsonrpc.Message, observe func(jsonrpc.Message) *jsonrpc.Completed) {
+	if m.Kind == jsonrpc.KindNotification && m.Method == jsonrpc.MethodToolListChanged {
+		s.emit(ctx, audit.Event{
+			At: s.deps.Clock.Now(), Session: opts.Session, Server: opts.Server,
+			Kind: audit.KindToolListChanged,
+		})
+		return
+	}
+	done := observe(m)
+	if done == nil {
+		return
+	}
+	switch done.Method {
+	case jsonrpc.MethodToolList:
+		// The advertised tool surface is what the agent reads and obeys —
+		// record it as a digest so a later mutation is provable. Content
+		// (descriptions, schemas) never reaches the log.
+		if sf, ok := toolsurface.Extract(done.ResultJSON); ok {
+			s.emit(ctx, audit.Event{
+				At: s.deps.Clock.Now(), Session: opts.Session, Server: opts.Server,
+				Kind: audit.KindToolSurface, ArgsDigest: sf.Digest(),
+				Detail: fmt.Sprintf("tools=%d", sf.Count()), ToolNames: sf.Names(),
+			})
+		}
+	default:
+		s.emit(ctx, audit.Event{
+			At: s.deps.Clock.Now(), Session: opts.Session, Server: opts.Server,
+			Kind: audit.KindToolCall, Tool: done.Tool, ArgsDigest: done.ArgsDigest,
+			DurationMs: done.Duration.Milliseconds(),
+			Status:     status(done), ErrCode: done.ErrCode,
+		})
+	}
 }
 
 // pump copies src to dst line by line. inspect sees every line and decides
