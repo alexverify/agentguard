@@ -10,14 +10,24 @@ import (
 
 func TestDefaultDiscoversAcrossTools(t *testing.T) {
 	dir := t.TempDir()
-	// One project carrying configs for all five supported tools.
+	home := t.TempDir()
+	// NewKimi resolves its user-scope path from the home dir at construction, so
+	// pin the home before Default() builds the discoverers. os.UserHomeDir reads
+	// USERPROFILE on Windows and HOME elsewhere; set both.
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	// One project carrying configs for the project-scoped tools, plus a
+	// user-scope config for launch-scoped kimi.
 	writeFile(t, filepath.Join(dir, ".mcp.json"), `{"mcpServers":{"cc":{"command":"npx","args":["-y","cc@1.0.0"]}}}`)
 	writeFile(t, filepath.Join(dir, ".cursor", "mcp.json"), `{"mcpServers":{"cur":{"url":"https://x/sse"}}}`)
 	writeFile(t, filepath.Join(dir, ".gemini", "settings.json"), `{"mcpServers":{"gem":{"command":"npx","args":["-y","gem@2.0.0"]}}}`)
 	writeFile(t, filepath.Join(dir, "opencode.json"), `{"mcp":{"oc":{"type":"local","command":["npx","-y","oc@1.0.0"]}}}`)
 	writeFile(t, filepath.Join(dir, ".codex", "config.toml"), "[mcp_servers.cx]\ncommand = \"npx\"\nargs = [\"-y\", \"cx@1.0.0\"]\n")
+	writeFile(t, filepath.Join(dir, ".qwen", "settings.json"), `{"mcpServers":{"qw":{"command":"/abs/vex-mcp","args":["--project","p"]}}}`)
+	writeFile(t, filepath.Join(dir, ".factory", "mcp.json"), `{"mcpServers":{"dr":{"command":"/abs/vex-mcp","args":["--project","p"]}}}`)
+	writeFile(t, filepath.Join(home, ".kimi", "mcp.json"), `{"mcpServers":{"km":{"command":"/abs/vex-mcp","args":["--project","p"]}}}`)
 
-	got, err := Default().Discover(context.Background(), []ports.Scope{{Kind: "project", Path: dir}})
+	got, err := Default().Discover(context.Background(), []ports.Scope{{Kind: "project", Path: dir}, {Kind: "global"}})
 	if err != nil {
 		t.Fatalf("Discover: %v", err)
 	}
@@ -25,7 +35,7 @@ func TestDefaultDiscoversAcrossTools(t *testing.T) {
 	for _, a := range got {
 		tools[a.Tool] = true
 	}
-	for _, want := range []string{"claude-code", "cursor", "gemini", "opencode", "codex"} {
+	for _, want := range []string{"claude-code", "cursor", "gemini", "opencode", "codex", "qwen-code", "kimi", "droid"} {
 		if !tools[want] {
 			t.Errorf("Default() did not discover tool %q; tools seen: %v", want, tools)
 		}
