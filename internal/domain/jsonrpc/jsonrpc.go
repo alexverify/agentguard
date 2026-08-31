@@ -32,6 +32,9 @@ const MethodToolCall = "tools/call"
 // MethodToolList is the MCP method whose response advertises the tool surface.
 const MethodToolList = "tools/list"
 
+// MethodInitialize is the MCP handshake whose response identifies the server.
+const MethodInitialize = "initialize"
+
 // MethodToolListChanged is the notification a server sends when its tool list
 // mutates mid-session.
 const MethodToolListChanged = "notifications/tools/list_changed"
@@ -164,7 +167,7 @@ func (t *Tracker) Observe(m Message, at time.Time) *Completed {
 			t.pending[m.ID] = Pending{
 				ID: m.ID, Method: m.Method, Tool: m.ToolName, ArgsDigest: m.ArgsDigest(), At: at,
 			}
-		case MethodToolList:
+		case MethodToolList, MethodInitialize:
 			t.pending[m.ID] = Pending{ID: m.ID, Method: m.Method, At: at}
 		}
 	case KindResponse:

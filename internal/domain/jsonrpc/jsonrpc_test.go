@@ -1,6 +1,7 @@
 package jsonrpc
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -213,6 +214,19 @@ func TestTrackerCompletesToolListByMethod(t *testing.T) {
 		t.Fatalf("Completed = %+v, want method tools/list", done)
 	}
 	if string(done.ResultJSON) != `{"tools":[]}` {
+		t.Fatalf("ResultJSON = %s", done.ResultJSON)
+	}
+}
+
+func TestTrackerCompletesInitializeByMethod(t *testing.T) {
+	tr := NewTracker()
+	at := time.Now()
+	tr.Observe(Parse([]byte(`{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}`)), at)
+	done := tr.Observe(Parse([]byte(`{"jsonrpc":"2.0","id":0,"result":{"protocolVersion":"2025-06-18","serverInfo":{"name":"github-mcp","version":"1.2.0"}}}`)), at.Add(time.Millisecond))
+	if done == nil || done.Method != MethodInitialize {
+		t.Fatalf("Completed = %+v, want method initialize", done)
+	}
+	if !strings.Contains(string(done.ResultJSON), "github-mcp") {
 		t.Fatalf("ResultJSON = %s", done.ResultJSON)
 	}
 }

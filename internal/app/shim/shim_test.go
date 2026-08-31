@@ -327,6 +327,54 @@ func TestRelayHandlesOversizedLines(t *testing.T) {
 	t.Error("oversized call not audited")
 }
 
+func TestRelayAuditsServerIdentity(t *testing.T) {
+	initLine := `{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":"2025-06-18","clientInfo":{"name":"claude-code"}}}` + "\n"
+	initResp := `{"jsonrpc":"2.0","id":0,"result":{"protocolVersion":"2025-06-18","capabilities":{"tools":{}},"serverInfo":{"name":"github-mcp","version":"1.2.0"}}}` + "\n"
+
+	sink := &apptest.AuditSink{}
+	serverGot, clientGot := runRelay(t, []string{initLine},
+		map[string][]string{initLine: {initResp}}, sink)
+
+	// The handshake itself must relay untouched.
+	if serverGot != initLine || clientGot != initResp {
+		t.Errorf("handshake altered:\nserver %q\nclient %q", serverGot, clientGot)
+	}
+
+	var infos []audit.Event
+	for _, e := range sink.Events() {
+		if e.Kind == audit.KindServerInfo {
+			infos = append(infos, e)
+		}
+	}
+	if len(infos) != 1 {
+		t.Fatalf("got %d server_info events, want 1: %+v", len(infos), sink.Events())
+	}
+	if infos[0].Detail != "name=github-mcp version=1.2.0 protocol=2025-06-18" {
+		t.Errorf("Detail = %q", infos[0].Detail)
+	}
+	// An initialize the server never answers must not be misaudited as an
+	// unanswered tool call.
+	for _, e := range sink.Events() {
+		if e.Kind == audit.KindToolCall {
+			t.Errorf("initialize leaked into tool_call events: %+v", e)
+		}
+	}
+}
+
+func TestMalformedInitializeResultEmitsNoIdentity(t *testing.T) {
+	initLine := `{"jsonrpc":"2.0","id":0,"method":"initialize"}` + "\n"
+	initResp := `{"jsonrpc":"2.0","id":0,"result":{"content":[]}}` + "\n"
+
+	sink := &apptest.AuditSink{}
+	runRelay(t, []string{initLine}, map[string][]string{initLine: {initResp}}, sink)
+
+	for _, e := range sink.Events() {
+		if e.Kind == audit.KindServerInfo {
+			t.Errorf("unexpected server_info event: %+v", e)
+		}
+	}
+}
+
 func TestToolListEmitsSurfaceEvent(t *testing.T) {
 	listLine := `{"jsonrpc":"2.0","id":1,"method":"tools/list"}` + "\n"
 	listResp := `{"jsonrpc":"2.0","id":1,"result":{"tools":[{"name":"read_file","description":"Read a file","inputSchema":{"type":"object"}},{"name":"write_file","description":"Write","inputSchema":{"type":"object"}}]}}` + "\n"

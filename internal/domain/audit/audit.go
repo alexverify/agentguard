@@ -36,6 +36,10 @@ const (
 	// KindToolListChanged records the server announcing a mid-session tool
 	// mutation via notifications/tools/list_changed.
 	KindToolListChanged Kind = "tool_list_changed"
+	// KindServerInfo records the identity the server declared in its
+	// initialize response (Detail: "name=… version=… protocol=…"), tying the
+	// session's audited behavior to a specific server build.
+	KindServerInfo Kind = "server_info"
 )
 
 // Statuses for KindToolCall events.

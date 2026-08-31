@@ -22,6 +22,7 @@ import (
 	"github.com/alexverify/eyebrow/internal/domain/audit"
 	"github.com/alexverify/eyebrow/internal/domain/jsonrpc"
 	"github.com/alexverify/eyebrow/internal/domain/policy"
+	"github.com/alexverify/eyebrow/internal/domain/serverinfo"
 	"github.com/alexverify/eyebrow/internal/domain/toolsurface"
 )
 
@@ -173,6 +174,15 @@ func (s *Service) observeServerMessage(ctx context.Context, opts Options, m json
 		return
 	}
 	switch done.Method {
+	case jsonrpc.MethodInitialize:
+		// The declared identity ties this session's events to a specific
+		// server build — the "which version was running" answer.
+		if info, ok := serverinfo.Extract(done.ResultJSON); ok {
+			s.emit(ctx, audit.Event{
+				At: s.deps.Clock.Now(), Session: opts.Session, Server: opts.Server,
+				Kind: audit.KindServerInfo, Detail: info.Detail(),
+			})
+		}
 	case jsonrpc.MethodToolList:
 		// The advertised tool surface is what the agent reads and obeys —
 		// record it as a digest so a later mutation is provable. Content

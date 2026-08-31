@@ -24,7 +24,7 @@ func (a *App) runAudit(ctx context.Context, args []string) int {
 	server := fs.String("server", "", "only events for this server")
 	tool := fs.String("tool", "", "only events for this tool")
 	status := fs.String("status", "", "only events with this status (ok|denied|error|unanswered)")
-	kind := fs.String("kind", "", "only events of this kind (tool_call|activation|egress|tool_surface|tool_list_changed|session_start|server_exit)")
+	kind := fs.String("kind", "", "only events of this kind (tool_call|activation|egress|tool_surface|tool_list_changed|server_info|session_start|server_exit)")
 	since := fs.String("since", "", "only events on/after this date (YYYY-MM-DD)")
 	list := fs.Bool("list", false, "list matching events instead of a summary")
 	jsonOut := fs.Bool("json", false, "machine-readable JSON output")
