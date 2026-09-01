@@ -9,6 +9,29 @@ Exit codes are part of the CLI contract and are covered by SemVer:
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-08-31
+
+### Added
+
+- **Discovery — qwen-code, Kimi, Droid**: the scanner reads the MCP server
+  configs of three more tools, bringing per-tool coverage to thirteen.
+- **Shim — server identity audit**: the shim records the name and version a
+  server declares in its `initialize` result, so the audit log shows which
+  server actually answered, and `eyebrow audit` can report it.
+
+### Fixed
+
+- The shim applied policy only to request-form `tools/call` frames. A server
+  call sent as a JSON-RPC *notification* (no `id`) skipped the policy check;
+  the shim now enforces policy on notification-form calls too.
+- Requests wrapped in a JSON-RPC *batch* array passed through the shim without
+  policy or audit. The shim now unpacks batch frames and applies both to every
+  call inside.
+
+### Internal
+
+- CI: `actions/attest-build-provenance` bumped from 4.1.1 to 4.2.2.
+
 ## [0.4.2] - 2026-08-05
 
 ### Added
@@ -169,7 +192,8 @@ Initial release.
 - **`fleet`**: export/push a machine snapshot and print the team blast-radius
   ("git is the backend").
 
-[Unreleased]: https://github.com/alexverify/eyebrow/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/alexverify/eyebrow/compare/v0.4.3...HEAD
+[0.4.3]: https://github.com/alexverify/eyebrow/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/alexverify/eyebrow/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/alexverify/eyebrow/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/alexverify/eyebrow/compare/v0.3.0...v0.4.0
