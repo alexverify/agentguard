@@ -65,6 +65,7 @@ func Default() *Multi {
 		NewQwen(),
 		NewKimi(),
 		NewDroid(),
+		NewOpenClaude(),
 		NewAeon(),
 		NewSkillsLock(),
 	)
