@@ -9,6 +9,26 @@ Exit codes are part of the CLI contract and are covered by SemVer:
 
 ## [Unreleased]
 
+## [0.4.5] - 2026-09-05
+
+### Added
+
+- **Discovery — OpenClaude skill registries**: repos that publish a
+  `registry.json` in the OpenClaude registry shape (one entry per skill with
+  a `SKILL.md` path and a sha256 pin) are scanned as a catalog. Each listed
+  skill folder is hashed whole, its egress hosts are fingerprinted, and the
+  registry's own pin is recorded beside the tree hash. Per-tool coverage is
+  now fifteen.
+
+### Changed
+
+- **OpenClaude skills** now carry an egress fingerprint, the same way AEON
+  and skills-lock skills do, so a post-install edit that adds a call to a new
+  host reads as a capability change and trips `failOnCapabilityExpansion`
+  under a policy that tolerates wording drift. Existing lockfiles that record
+  OpenClaude skills with call lines will report a one-time capability change
+  on the next scan.
+
 ## [0.4.4] - 2026-09-05
 
 ### Added
@@ -203,7 +223,8 @@ Initial release.
 - **`fleet`**: export/push a machine snapshot and print the team blast-radius
   ("git is the backend").
 
-[Unreleased]: https://github.com/alexverify/eyebrow/compare/v0.4.4...HEAD
+[Unreleased]: https://github.com/alexverify/eyebrow/compare/v0.4.5...HEAD
+[0.4.5]: https://github.com/alexverify/eyebrow/compare/v0.4.4...v0.4.5
 [0.4.4]: https://github.com/alexverify/eyebrow/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/alexverify/eyebrow/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/alexverify/eyebrow/compare/v0.4.1...v0.4.2
