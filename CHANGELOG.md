@@ -9,6 +9,17 @@ Exit codes are part of the CLI contract and are covered by SemVer:
 
 ## [Unreleased]
 
+## [0.4.4] - 2026-09-05
+
+### Added
+
+- **Discovery — OpenClaude**: the scanner reads OpenClaude skills from
+  `.openclaude/skills` (project) and `~/.openclaude/skills` (global), one
+  artifact per skill directory. The whole directory is hashed, including the
+  `skill.json` sidecar that registry installs write next to `SKILL.md`, so a
+  skill edited after OpenClaude's install-time hash check shows up as drift in
+  `verify`. Per-tool coverage is now fourteen.
+
 ## [0.4.3] - 2026-08-31
 
 ### Added
@@ -192,7 +203,8 @@ Initial release.
 - **`fleet`**: export/push a machine snapshot and print the team blast-radius
   ("git is the backend").
 
-[Unreleased]: https://github.com/alexverify/eyebrow/compare/v0.4.3...HEAD
+[Unreleased]: https://github.com/alexverify/eyebrow/compare/v0.4.4...HEAD
+[0.4.4]: https://github.com/alexverify/eyebrow/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/alexverify/eyebrow/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/alexverify/eyebrow/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/alexverify/eyebrow/compare/v0.4.0...v0.4.1
