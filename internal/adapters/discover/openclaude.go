@@ -34,12 +34,24 @@ func (o *OpenClaude) Discover(_ context.Context, scopes []ports.Scope) ([]artifa
 	for _, sc := range scopes {
 		switch sc.Kind {
 		case "project":
-			out = append(out, skillsFromDir(o.Tool(), filepath.Join(sc.Path, ".openclaude", "skills"), sc.String())...)
+			out = append(out, o.skills(filepath.Join(sc.Path, ".openclaude", "skills"), sc.String())...)
 		case "global":
 			if o.home != "" {
-				out = append(out, skillsFromDir(o.Tool(), filepath.Join(o.home, ".openclaude", "skills"), "global")...)
+				out = append(out, o.skills(filepath.Join(o.home, ".openclaude", "skills"), "global")...)
 			}
 		}
 	}
 	return out, nil
+}
+
+// skills enumerates one skills directory and fingerprints each skill's egress
+// the same way the AEON adapter does. OpenClaude verifies the registry hash at
+// install time only, so the fingerprint is what makes a later edit that adds a
+// call to a new host read as a capability change rather than plain drift.
+func (o *OpenClaude) skills(dir, scope string) []artifact.Artifact {
+	skills := skillsFromDir(o.Tool(), dir, scope)
+	for i := range skills {
+		skills[i].Capabilities = capabilitiesFromSkill(skills[i].DiscoveredFrom)
+	}
+	return skills
 }
