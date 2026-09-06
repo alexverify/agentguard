@@ -123,3 +123,33 @@ func TestHashContextCancelled(t *testing.T) {
 		t.Error("expected error from cancelled context")
 	}
 }
+
+// A skill directory may itself be a symlink (OpenClaude follows them when it
+// loads skills). WalkDir does not follow a symlinked root, so without
+// resolving it the walk yields no files and the artifact gets the empty
+// digest: it appears in the lockfile while its contents go unhashed, and an
+// edit behind the link passes verify. The hasher must resolve the root.
+func TestHashFollowsSymlinkedRoot(t *testing.T) {
+	dir := t.TempDir()
+	real := filepath.Join(dir, "real")
+	writeFile(t, filepath.Join(real, "SKILL.md"), "body")
+	link := filepath.Join(dir, "link")
+	if err := os.Symlink(real, link); err != nil {
+		t.Skipf("symlink not supported here: %v", err)
+	}
+
+	want, wantFiles, _, err := New().Hash(context.Background(), real)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, files, _, err := New().Hash(context.Background(), link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) != len(wantFiles) || len(files) != 1 || files[0].Path != "SKILL.md" {
+		t.Fatalf("files via symlink = %+v, want %+v", files, wantFiles)
+	}
+	if got != want {
+		t.Errorf("digest via symlink = %s, want %s", got, want)
+	}
+}
