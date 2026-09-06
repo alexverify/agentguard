@@ -131,14 +131,14 @@ func TestHashContextCancelled(t *testing.T) {
 // edit behind the link passes verify. The hasher must resolve the root.
 func TestHashFollowsSymlinkedRoot(t *testing.T) {
 	dir := t.TempDir()
-	real := filepath.Join(dir, "real")
-	writeFile(t, filepath.Join(real, "SKILL.md"), "body")
+	target := filepath.Join(dir, "real")
+	writeFile(t, filepath.Join(target, "SKILL.md"), "body")
 	link := filepath.Join(dir, "link")
-	if err := os.Symlink(real, link); err != nil {
+	if err := os.Symlink(target, link); err != nil {
 		t.Skipf("symlink not supported here: %v", err)
 	}
 
-	want, wantFiles, _, err := New().Hash(context.Background(), real)
+	want, wantFiles, _, err := New().Hash(context.Background(), target)
 	if err != nil {
 		t.Fatal(err)
 	}
