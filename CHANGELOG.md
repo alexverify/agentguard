@@ -9,6 +9,16 @@ Exit codes are part of the CLI contract and are covered by SemVer:
 
 ## [Unreleased]
 
+## [0.4.6] - 2026-09-06
+
+### Fixed
+
+- A skill directory that is itself a symlink was listed in the lockfile with
+  the empty digest and no file list, so an edit behind the link passed
+  `verify`. The hasher now resolves a symlinked root before walking it;
+  symlinks inside a tree are still skipped. Lockfiles that recorded a
+  symlinked skill will show a one-time content change on the next scan.
+
 ## [0.4.5] - 2026-09-05
 
 ### Added
@@ -223,7 +233,8 @@ Initial release.
 - **`fleet`**: export/push a machine snapshot and print the team blast-radius
   ("git is the backend").
 
-[Unreleased]: https://github.com/alexverify/eyebrow/compare/v0.4.5...HEAD
+[Unreleased]: https://github.com/alexverify/eyebrow/compare/v0.4.6...HEAD
+[0.4.6]: https://github.com/alexverify/eyebrow/compare/v0.4.5...v0.4.6
 [0.4.5]: https://github.com/alexverify/eyebrow/compare/v0.4.4...v0.4.5
 [0.4.4]: https://github.com/alexverify/eyebrow/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/alexverify/eyebrow/compare/v0.4.2...v0.4.3
