@@ -66,6 +66,14 @@ func (h *Hasher) Hash(ctx context.Context, root string) (string, []artifact.File
 		return digest.Root(leaves), files, newest, nil
 	}
 
+	// WalkDir does not follow a symlinked root: it reports the link itself as
+	// a non-regular entry and yields no files, so a symlinked skill directory
+	// would land in the lockfile with the empty digest and its contents
+	// unhashed. Resolve the root once; symlinks inside the tree stay skipped.
+	if resolved, rerr := filepath.EvalSymlinks(root); rerr == nil {
+		root = resolved
+	}
+
 	walkErr := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
